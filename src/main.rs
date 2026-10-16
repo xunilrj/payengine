@@ -16,6 +16,8 @@ enum TransactionType {
     Withdrawal,
     #[serde(rename = "dispute")]
     Dispute,
+    #[serde(rename = "resolve")]
+    Resolve,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,6 +72,7 @@ fn main() {
                 engine.withdrawal(record.tx, record.client, record.amount.unwrap())
             }
             TransactionType::Dispute => engine.dispute(record.tx, record.client),
+            TransactionType::Resolve => engine.resolve(record.tx, record.client),
         };
     }
 
