@@ -73,3 +73,7 @@ a disputed withdrawal.
 ## Redundant Client ID
 
 Some messages seems to havee redundant Client ID. Spec is not enterily clear what to do with them. I decided to use them to check everything is fine and generate warnings when not.
+
+## f32 -> Decimal
+
+Now we are going to improve the issue of precision of `f32`. I decided to use `rust_decimal` as it is a well known create with 28 digits. This is NOT enough in same pairs, BTC to some meme coin, for example. In this case it may be worth to use an "infinite precision" decimal. But for this case it is enough.

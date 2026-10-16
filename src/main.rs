@@ -1,6 +1,7 @@
 mod engine;
 
 use csv::{ReaderBuilder, Terminator, Trim, Writer};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::env::args;
 use tracing::trace;
@@ -28,22 +29,22 @@ struct InputCsv {
     ty: TransactionType,
     client: u64,
     tx: u64,
-    amount: Option<f32>,
+    amount: Option<Decimal>,
 }
 
 #[derive(Debug, Serialize)]
 struct OutputCsv {
     client: u64,
-    available: f32,
-    held: f32,
-    total: f32,
+    available: Decimal,
+    held: Decimal,
+    total: Decimal,
     locked: bool,
 }
 
 #[derive(Default)]
 struct Account {
-    available: f32,
-    held: f32,
+    available: Decimal,
+    held: Decimal,
     locked: bool,
 }
 

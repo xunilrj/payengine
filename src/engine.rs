@@ -1,6 +1,7 @@
 use tracing::warn;
 
 use crate::Account;
+use rust_decimal::Decimal;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy)]
@@ -18,7 +19,7 @@ enum TxStatus {
 
 struct TxState {
     status: TxStatus,
-    amount: f32,
+    amount: Decimal,
     kind: TxKind,
     client: u64,
 }
@@ -30,7 +31,7 @@ pub struct PaymentsEngine {
 }
 
 impl PaymentsEngine {
-    pub fn deposit(&mut self, txid: u64, id: u64, amount: f32) {
+    pub fn deposit(&mut self, txid: u64, id: u64, amount: Decimal) {
         let account = self.accounts.entry(id).or_default();
         account.available += amount;
 
@@ -45,10 +46,9 @@ impl PaymentsEngine {
         );
     }
 
-    pub fn withdrawal(&mut self, txid: u64, id: u64, amount: f32) {
+    pub fn withdrawal(&mut self, txid: u64, id: u64, amount: Decimal) {
         let account = self.accounts.entry(id).or_default();
 
-        // TODO: equals with f32 here
         let tx = if account.available >= amount {
             account.available -= amount;
             TxState {

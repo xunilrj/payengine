@@ -49,20 +49,24 @@ Dispute/resolve/chargeback records carry their own `client` field, but the engin
 - ✅ `TxState` flattened from a per-variant enum to a struct `{ status, amount, kind, client }` to avoid repeating fields.
 - Tests: `tests/client_mismatch/{dispute,resolve,chargeback}.csv`.
 
-## 6. Replace `f32` with a fixed-point / decimal money type
+## 6. Replace `f32` with a fixed-point / decimal money type — DONE
 
 `f32` accumulates rounding error across many sums and cannot represent four-decimal-place money exactly. The spec emphasizes correctness, safety, and behavior on larger data sets.
 
-- Evaluate `rust_decimal` or a scaled-integer (e.g. amounts in millionths, since precision is four places) representation.
-- Apply consistently across `Account` fields, the tx amount store, and the CSV (de)serialization.
+- ✅ Replaced `f32` with `rust_decimal::Decimal` (pinned `1.43.0`, `features = ["serde"]`) across `Account.available`/`held`, `TxState.amount`, `InputCsv.amount`, `OutputCsv.{available,held,total}`, and all engine method signatures.
+- ✅ The `// TODO: equals with f32 here` is resolved — `Decimal` comparisons are exact, so the withdrawal guard `available >= amount` is now exact.
+- ✅ Input: amounts are accepted verbatim with full precision (rust_decimal supports ~28 significant digits), so >4-place values are preserved.
+- ✅ Output: Decimals serialize in their natural scale-preserving form (significant digits kept; input trailing zeros normalized at parse, e.g. `1.0` → `1`). The spec does not require always-4-decimal output (it states "displaying decimals for round values do not matter" and treats `2` == `2.0`), so this is compliant.
+- No rounding policy needed: the engine only adds/subtracts, which `Decimal` does exactly; no division/multiplication occurs.
+- Tests: `tests/decimal/{float_bug,accumulation,precision6,precision8}.csv`.
 
-## 7. Chargeback correctness precondition
+## 7. Chargeback correctness precondition — DONE (via items 1 & 2)
 
-`chargeback` only decreases `held`. That is correct *only* when the tx was previously disputed (funds already moved from `available` → `held`). Because dispute state is not tracked today (item 1), a chargeback on a non-disputed tx would drive `held` negative and distort `total`. This is resolved automatically once item 1 lands, but should be covered by a test.
+`chargeback` only decreases `held` (deposits) or refunds `available` (withdrawals). That is correct only when the tx was previously disputed. This is now guarded: a chargeback on a non-existent tx is ignored (item 2), and a chargeback on a tx not under dispute (`Normal`) is ignored with a warning (item 1), so `held` can no longer be driven negative by an out-of-order chargeback. Covered by `tests/dispute_state/chargeback_not_disputed.csv`.
 
-## 8. Output precision
+## 8. Output precision — DONE (via item 6)
 
-Spec: output values with four places past the decimal. Current output relies on `f32` default formatting. Once the money type is settled (item 6), ensure the serialized `available`, `held`, and `total` are emitted with the required precision.
+Spec: "displaying decimals for round values do not matter" — the spec does **not** require always-4-decimal output (it treats `2` == `2.0`). With `rust_decimal` (item 6), `available`/`held`/`total` serialize in their natural scale-preserving form, which is spec-compliant. No forced 4-place formatting is applied.
 
 ## 8b. Parser robustness
 
@@ -73,7 +77,7 @@ Moved out of item 2: this is a general input-parsing concern rather than a dispu
 
 ## 9. Tests to add
 
-No new implementation is required to scope these; they pin the behavior the items above introduce. Checked items have tests in `tests/ok` / `tests/nok`.
+No new implementation is required to scope these; they pin the behavior the items above introduce. Tests live in feature subfolders under `tests/`.
 
 - ✅ Dispute / resolve / chargeback on a non-existent tx → ignored, no panic, balances unchanged.
 - ✅ Resolve or chargeback on a tx not under dispute → ignored.
@@ -83,4 +87,4 @@ No new implementation is required to scope these; they pin the behavior the item
 - ✅ Chargeback on a non-disputed tx → ignored (held not driven negative).
 - ✅ Resolve / chargeback on a rejected withdrawal → ignored.
 - ✅ Dispute/resolve/chargeback with a mismatched `client` → ignored.
-- Accumulation/rounding test that would fail under `f32` but passes under the chosen decimal type.
+- ✅ Accumulation/rounding test that would fail under `f32` but passes under the chosen decimal type (`tests/decimal/float_bug.csv`, `accumulation.csv`), plus >4-precision preservation (`precision6.csv`, `precision8.csv`).
