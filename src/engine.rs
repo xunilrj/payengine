@@ -38,6 +38,10 @@ pub struct PaymentsEngine {
 
 impl PaymentsEngine {
     pub fn deposit(&mut self, txid: u32, id: u16, amount: Decimal) {
+        if self.is_locked(id) {
+            warn!(client = id, txid = txid, "account frozen; deposit ignored");
+            return;
+        }
         let account = self.accounts.entry(id).or_default();
         account.available += amount;
 
@@ -53,6 +57,10 @@ impl PaymentsEngine {
     }
 
     pub fn withdrawal(&mut self, txid: u32, id: u16, amount: Decimal) {
+        if self.is_locked(id) {
+            warn!(client = id, txid = txid, "account frozen; withdrawal ignored");
+            return;
+        }
         let account = self.accounts.entry(id).or_default();
 
         let tx = if account.available >= amount {
@@ -76,6 +84,10 @@ impl PaymentsEngine {
     }
 
     pub fn dispute(&mut self, txid: u32, id: u16) {
+        if self.is_locked(id) {
+            warn!(client = id, txid = txid, "account frozen; dispute ignored");
+            return;
+        }
         let Some(tx) = self.txs_amounts.get_mut(&txid) else {
             warn!(txid = txid, "Tx not found");
             return;
@@ -118,6 +130,10 @@ impl PaymentsEngine {
     }
 
     pub fn resolve(&mut self, txid: u32, id: u16) {
+        if self.is_locked(id) {
+            warn!(client = id, txid = txid, "account frozen; resolve ignored");
+            return;
+        }
         let Some(tx) = self.txs_amounts.get_mut(&txid) else {
             warn!(txid = txid, "Tx not found");
             return;
@@ -156,6 +172,10 @@ impl PaymentsEngine {
     }
 
     pub fn chargeback(&mut self, txid: u32, id: u16) {
+        if self.is_locked(id) {
+            warn!(client = id, txid = txid, "account frozen; chargeback ignored");
+            return;
+        }
         let Some(tx) = self.txs_amounts.get_mut(&txid) else {
             warn!(txid = txid, "Tx not found");
             return;
@@ -193,6 +213,10 @@ impl PaymentsEngine {
                 warn!(txid = txid, "Cannot chargeback a rejected tx");
             }
         }
+    }
+
+    fn is_locked(&self, id: u16) -> bool {
+        self.accounts.get(&id).map(|a| a.locked).unwrap_or(false)
     }
 
     pub fn iter_accounts(&self) -> impl Iterator<Item = (&u16, &Account)> {

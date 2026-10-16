@@ -19,14 +19,15 @@ Spec: *"A chargeback is the final state of a dispute and represents the client r
 - The residual concern — a *new* `dispute` opened on an already-charged-back tx would re-hold funds — is real **only** if frozen accounts do not reject operations. That is item 3's scope (frozen-account semantics), not a tx-state concern. With item 3's bank-like freeze, the locked account blocks the re-dispute at the account level before any tx lookup. The protection belongs on the account, not the tx.
 - No new tests for a "terminal tx" behavior — that behavior is not spec-required. `tests/ok/dispute_state/chargeback_not_disputed.csv` already covers "chargeback/resolve on a tx not under dispute → ignored."
 
-## 3. Define frozen/locked account semantics — TODO
+## 3. Define frozen/locked account semantics — DONE
 
-Spec: *"If a chargeback occurs the client's account should be immediately frozen."* The spec does not define what frozen means operationally. `Account.locked` is set on chargeback but never read — deposits, withdrawals, disputes, resolves, and chargebacks all still process on a locked account. The spec invites bank-like assumptions ("think an ATM or a transaction processor").
+Spec: *"If a chargeback occurs the client's account should be immediately frozen."* The spec does not define what frozen means operationally. Decision: **a frozen account is really frozen — nothing else is allowed.** Every operation on a locked account (`deposit`, `withdrawal`, `dispute`, `resolve`, `chargeback`) is ignored with a `WARN` and no balance change, no tx-state change, and no new tx record.
 
-- ✅ Treat `locked == true` as frozen: `deposit`, `withdrawal`, `dispute`, `resolve`, and `chargeback` on a locked account are ignored with a `WARN` and no balance change. (A frozen ATM account does not accept new activity.)
-- ✅ Record this assumption in the README, replacing the current "this one seems wrong" note.
-- Tests: `tests/ok/locked/{deposit_after, withdrawal_after, dispute_after}.csv`.
-- Open question (decide before implementing): should a `chargeback` on a *different* tx of an already-locked account still be allowed to move `held`/`available`? Bank-like answer: no — once frozen, no movement at all.
+- ✅ Added `PaymentsEngine::is_locked(id)` and a frozen-check at the top of every engine method. For `dispute`/`resolve`/`chargeback` the check runs **before** the tx lookup, so a frozen account short-circuits before any tx is touched (this also resolved a borrow-check conflict with the `get_mut` on `txs_amounts`).
+- ✅ Open question resolved: a `chargeback` on a *different* tx of an already-locked account is **not** allowed — it is ignored like everything else. No funds move; `held` stays as it was. "Really frozen" means no movement at all, even a reversal.
+- ✅ `Account.locked` is now actually read, not just written.
+- Tests: `tests/ok/locked/{deposit_after, withdrawal_after, dispute_after, resolve_after, chargeback_after, only_locked_client_frozen}.csv`. The first five each lock client 1 via a chargeback, then attempt one further operation and assert it is ignored (funds unchanged). `chargeback_after` and `resolve_after` leave `held` at `5` to prove a second dispute-family op on a different tx does not move funds. `only_locked_client_frozen` locks client 1 while client 2 keeps operating normally (deposit + withdrawal succeed), proving the freeze is per-account. All 39 e2e snapshots pass; the 33 pre-existing snapshots are unchanged (no regression).
+- Interaction with item 2: this is what prevents a *new* `dispute` from re-holding funds on an already-charged-back tx — the locked account blocks it at the account level before any tx lookup. No terminal tx status is needed.
 
 ## 4. Reject negative amounts — TODO
 

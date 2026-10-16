@@ -91,3 +91,13 @@ I have also considered what to do with the transaction map. Today we are storing
 All possibilities seems to complex for a toy project like this. It can scary the reviewer. 
 
 I decided to not pursue this, although I would for this to be memory bounded (ideal for containers etc.).
+
+## Frozen Account
+
+I was not sure how much a frozen account needs to be really frozen. But specs say
+
+> When in doubt on how to interpret a requirement, try to make assumptions that make sense for a bank (think an ATM or more elaborate transaction processors), and document them.
+
+So I decided to make frozend account to be really frozen. Now they "ignore" all transactions. I still generate a warn, but nothing else can change about them.
+
+I was reluctant because there is no "unlock" message. But seems to be the correct thing to do.
