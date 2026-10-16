@@ -28,12 +28,17 @@ Assumptions recorded (see also the spec note on locking):
 - ✅ Rejected withdrawals are recorded as `TxState::Rejected` (not `Normal`), and `dispute`/`resolve`/`chargeback` ignore a `Rejected` tx, so a failed withdrawal cannot be disputed as if it happened.
 - The `// TODO: equals with f32 here` on the guard comparison remains, but that is an item-6 (decimal type) concern, not item 3.
 
-## 4. Handle disputes on withdrawals
+## 4. Handle disputes on withdrawals — DONE
 
-Flagged by the `// TODO` in `dispute`. Withdrawals are stored as negative amounts, so the current sign arithmetic produces a negative `held` when a withdrawal is disputed. Decide and implement the intended semantics:
+The spec's dispute/resolve/chargeback formula is deposit-centric and never shows a withdrawal being disputed; the case is underspecified. Implemented a direction-aware `TxKind` on `TxState` so deposits and withdrawals take different paths:
 
-- A dispute reverses a transaction. For a withdrawal, "reversing" means returning the withdrawn funds: `available += amount`, and the held concept needs to be defined for the withdrawal case.
-- Confirm whether `held` should ever be negative, and ensure the dispute/resolve/chargeback signs are consistent for both deposit- and withdrawal-originated txs.
+- ✅ Deposits follow the spec formula exactly (`available -= amount`, `held += amount` on dispute; reverse on resolve; `held -= amount` on chargeback).
+- ✅ A disputed withdrawal only flags the tx as under dispute — `available` and `held` do not move, so `held` never goes negative.
+- ✅ Chargeback on a disputed withdrawal refunds the withdrawn amount (`available += amount`) and locks the account.
+- ✅ Resolve on a disputed withdrawal is a no-op (the withdrawal stands).
+- ✅ `held` is non-negative for both deposit- and withdrawal-originated disputes.
+
+Recorded deviation (documented in README): a withdrawal chargeback increases `total` by the disputed amount, contradicting the spec's deposit-centric chargeback wording. Refunding a disputed withdrawal is the correct reversal, so this is the intended semantics.
 
 ## 5. Validate the client on dispute/resolve/chargeback
 
@@ -66,13 +71,14 @@ Moved out of item 2: this is a general input-parsing concern rather than a dispu
 
 ## 9. Tests to add
 
-No new implementation is required to scope these; they pin the behavior the items above introduce.
+No new implementation is required to scope these; they pin the behavior the items above introduce. Checked items have tests in `tests/ok` / `tests/nok`.
 
-- Dispute / resolve / chargeback on a non-existent tx → ignored, no panic, balances unchanged.
-- Resolve or chargeback on a tx not under dispute → ignored.
-- Double dispute on the same tx → second is ignored.
-- Withdrawal exceeding available → rejected, balances unchanged.
-- Dispute on a withdrawal → correct sign, no negative `held`.
-- Chargeback on a non-disputed tx → ignored (held not driven negative).
+- ✅ Dispute / resolve / chargeback on a non-existent tx → ignored, no panic, balances unchanged.
+- ✅ Resolve or chargeback on a tx not under dispute → ignored.
+- ✅ Double dispute on the same tx → second is ignored.
+- ✅ Withdrawal exceeding available → rejected, balances unchanged.
+- ✅ Dispute on a withdrawal → correct sign, no negative `held`.
+- ✅ Chargeback on a non-disputed tx → ignored (held not driven negative).
+- ✅ Resolve / chargeback on a rejected withdrawal → ignored.
 - Dispute/resolve/chargeback with a mismatched `client` → ignored.
 - Accumulation/rounding test that would fail under `f32` but passes under the chosen decimal type.

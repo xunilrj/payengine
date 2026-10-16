@@ -22,13 +22,13 @@ I will use AI in the following steps:
 
 I will try to create here the most realistic devlog of the steps I took whilst developing this solution.
 
-# First step
+## First step
 
 I will expedite a minimal example working. That means that code does not need to be good. I just want something working e2e. In this case will be a simple CLI parsing a one-line CSV and printing the output.
 
 I will use precise versioning in `Cargo.toml` as a security measure agains supply chain attacks.
 
-# Test framework
+## Test framework
 
 Now that we can process the simple CSV file, I want to create the test framework. Although I do see the value of "unit tests", in this case, I think e2e snapshot tests will be a better fit. Why? Because they will be visually simpler to understand what they are testing, and their final result.
 
@@ -38,11 +38,11 @@ A "polemic" decision is why use `cargo r` to run the app, and not call a functio
 
 It is a little bit ugly, I will give you that, but is something I already use in other repos, and is something I like.
 
-# Quick fix to remove branding
+## Quick fix to remove branding
 
 I used AI to create the recipe `search-history` to help me certify no branding exists in the repo.
 
-# Basic Implementation
+## Basic Implementation
 
 The basic implementation is done. Now I will use AI to find missing spots and improve the spec coverage. I will not focus on code quality yet.
 
@@ -58,6 +58,14 @@ And when creating this ROADMAP.md two points popped out when discussing with cla
 
 ROADMAP.md was introduced in the commit 6b67a69.
 
-# Removing timestamps from snapshots
+## Removing timestamps from snapshots
 
 I forgot to remove log timestamps from snapshots, making them non deterministic. This is fixed now.
+
+## Disputes on withdrawals
+
+The spec is not very clear on what to do on `withdrawals`. So the best implementation I found is: deposits move funds to `held` as the spec says; a disputed withdrawal only flags the tx without moving balances (keeping `held` non-negative), and its chargeback refunds the amount to `available` and locks the account.
+
+This deviates a little from the spec `chargeback` wording ("total should decrease"). My reading is that
+the spec is focused in describing `deposit`. Because it would not make sense to "decrease total" when refunding
+a disputed withdrawal.
