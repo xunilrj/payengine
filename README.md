@@ -77,3 +77,7 @@ Some messages seems to havee redundant Client ID. Spec is not enterily clear wha
 ## f32 -> Decimal
 
 Now we are going to improve the issue of precision of `f32`. I decided to use `rust_decimal` as it is a well known create with 28 digits. This is NOT enough in same pairs, BTC to some meme coin, for example. In this case it may be worth to use an "infinite precision" decimal. But for this case it is enough.
+
+## User friendly error
+
+It was not asked but I decided to return more user friendly errors, because it is one thing I believe is very important.

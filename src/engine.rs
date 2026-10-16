@@ -1,7 +1,7 @@
 use tracing::warn;
 
 use rust_decimal::Decimal;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Clone, Copy)]
 enum TxKind {
@@ -32,8 +32,8 @@ pub struct Account {
 
 #[derive(Default)]
 pub struct PaymentsEngine {
-    accounts: HashMap<u64, Account>,
-    txs_amounts: HashMap<u64, TxState>,
+    accounts: BTreeMap<u64, Account>,
+    txs_amounts: BTreeMap<u64, TxState>,
 }
 
 impl PaymentsEngine {
