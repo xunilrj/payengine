@@ -3,4 +3,5 @@ run:
     RUST_LOG=trace cargo run -- tests/ok/simple.csv
 
 accept-tests:
-    cargo t || cargo insta accept
+    cargo t || true
+    cargo insta accept
