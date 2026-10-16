@@ -3,6 +3,8 @@ mod engine;
 use csv::{ReaderBuilder, Terminator, Trim, Writer};
 use serde::{Deserialize, Serialize};
 use std::env::args;
+use tracing::trace;
+use tracing_subscriber::EnvFilter;
 
 use crate::engine::PaymentsEngine;
 
@@ -38,10 +40,13 @@ struct Account {
 }
 
 fn main() {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+
     let mut engine = PaymentsEngine::default();
 
     let input = args().nth(1).unwrap();
-
+    trace!(input = input, "Input file");
     let mut rdr = ReaderBuilder::new()
         .delimiter(b',')
         .has_headers(true)
@@ -51,6 +56,7 @@ fn main() {
         .unwrap();
     for result in rdr.deserialize::<InputCsv>() {
         let record = result.expect("a CSV record");
+        trace!(record = ?record, "Record");
 
         match record.ty {
             TransactionType::Deposit => engine.deposit(record.client, record.amount),

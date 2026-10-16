@@ -1,3 +1,6 @@
 r: run
 run:
-    cargo run -- tests/simple.csv
+    RUST_LOG=trace cargo run -- tests/ok/simple.csv
+
+accept-tests:
+    cargo t || cargo insta accept
