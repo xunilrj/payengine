@@ -14,6 +14,8 @@ enum TransactionType {
     Deposit,
     #[serde(rename = "withdrawal")]
     Withdrawal,
+    #[serde(rename = "dispute")]
+    Dispute,
 }
 
 #[derive(Debug, Deserialize)]
@@ -22,7 +24,7 @@ struct InputCsv {
     ty: TransactionType,
     client: u64,
     tx: u64,
-    amount: f32,
+    amount: Option<f32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,8 +63,13 @@ fn main() {
         trace!(record = ?record, "Record");
 
         match record.ty {
-            TransactionType::Deposit => engine.deposit(record.client, record.amount),
-            TransactionType::Withdrawal => engine.withdrawal(record.client, record.amount),
+            TransactionType::Deposit => {
+                engine.deposit(record.tx, record.client, record.amount.unwrap())
+            }
+            TransactionType::Withdrawal => {
+                engine.withdrawal(record.tx, record.client, record.amount.unwrap())
+            }
+            TransactionType::Dispute => engine.dispute(record.tx, record.client),
         };
     }
 
