@@ -6,6 +6,7 @@ use std::collections::HashMap;
 enum TxState {
     Normal { amount: f32 },
     InDispute { amount: f32 },
+    Rejected { amount: f32 },
 }
 
 #[derive(Default)]
@@ -24,10 +25,16 @@ impl PaymentsEngine {
 
     pub fn withdrawal(&mut self, txid: u64, id: u64, amount: f32) {
         let account = self.accounts.entry(id).or_default();
-        account.available -= amount;
 
-        self.txs_amounts
-            .insert(txid, TxState::Normal { amount: -amount });
+        // TODO: equals with f32 here
+        let tx = if account.available >= amount {
+            account.available -= amount;
+            TxState::Normal { amount: -amount }
+        } else {
+            TxState::Rejected { amount: -amount }
+        };
+
+        self.txs_amounts.insert(txid, tx);
     }
 
     pub fn dispute(&mut self, txid: u64, id: u64) {
@@ -49,6 +56,10 @@ impl PaymentsEngine {
                 warn!(txid = txid, "Tx was already in dispute");
                 TxState::InDispute { amount: *amount }
             }
+            TxState::Rejected { amount } => {
+                warn!(txid = txid, "Cannot dispute a rejected tx");
+                TxState::Rejected { amount: *amount }
+            }
         };
     }
 
@@ -69,6 +80,10 @@ impl PaymentsEngine {
                 account.held -= *amount;
                 TxState::Normal { amount: *amount }
             }
+            TxState::Rejected { amount } => {
+                warn!(txid = txid, "Cannot resolve a rejected tx");
+                TxState::Rejected { amount: *amount }
+            }
         };
     }
 
@@ -88,6 +103,10 @@ impl PaymentsEngine {
                 account.held -= *amount;
                 account.locked = true;
                 TxState::Normal { amount: *amount }
+            }
+            TxState::Rejected { amount } => {
+                warn!(txid = txid, "Cannot chargeback a rejected tx");
+                TxState::Rejected { amount: *amount }
             }
         };
     }

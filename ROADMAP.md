@@ -20,11 +20,13 @@ Assumptions recorded (see also the spec note on locking):
 
 - ✅ Replaced every `unwrap()` on tx lookup with a guarded `let Some(tx) = ... else { warn; return; }` branch that silently skips the operation.
 
-## 3. Guard withdrawals against insufficient funds
+## 3. Guard withdrawals against insufficient funds — DONE
 
 `withdrawal` does `account.available -= amount` unconditionally. Spec: *"If a client does not have sufficient available funds the withdrawal should fail and the total amount of funds should not change."*
 
-- Check `available >= amount` before debiting; otherwise leave the account unchanged and do not record the tx (or record it as failed/rejected so it cannot be disputed later).
+- ✅ Check `available >= amount` before debiting; otherwise leave the account unchanged.
+- ✅ Rejected withdrawals are recorded as `TxState::Rejected` (not `Normal`), and `dispute`/`resolve`/`chargeback` ignore a `Rejected` tx, so a failed withdrawal cannot be disputed as if it happened.
+- The `// TODO: equals with f32 here` on the guard comparison remains, but that is an item-6 (decimal type) concern, not item 3.
 
 ## 4. Handle disputes on withdrawals
 
