@@ -3,9 +3,9 @@ source: tests/e2e.rs
 ---
 exit status: 0
 
-TRACE payengine: Input file input="tests/nok/chargeback_missing_tx.csv"
+TRACE payengine: Input file input="tests/missing_tx/dispute.csv"
 TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(1.0) }
-TRACE payengine: Record record=InputCsv { ty: Chargeback, client: 1, tx: 999, amount: None }
+TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 999, amount: None }
  WARN payengine::engine: Tx not found txid=999
 client,available,held,total,locked
 1,1.0,0.0,1.0,false

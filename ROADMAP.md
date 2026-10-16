@@ -40,12 +40,14 @@ The spec's dispute/resolve/chargeback formula is deposit-centric and never shows
 
 Recorded deviation (documented in README): a withdrawal chargeback increases `total` by the disputed amount, contradicting the spec's deposit-centric chargeback wording. Refunding a disputed withdrawal is the correct reversal, so this is the intended semantics.
 
-## 5. Validate the client on dispute/resolve/chargeback
+## 5. Validate the client on dispute/resolve/chargeback — DONE
 
-Dispute/resolve/chargeback records carry their own `client` field, but the engine applies the operation to that client without checking it matches the original transaction's client. Tx IDs are globally unique, so the original tx's client is known — but it is not currently stored on the tx record (`TxState` holds only `amount`).
+Dispute/resolve/chargeback records carry their own `client` field, but the engine previously applied the operation to that client without checking it matches the original transaction's client — a mismatched record would move money on the wrong account (or create a phantom account with negative balances). Tx IDs are globally unique, so the original tx's client is authoritative.
 
-- Extend the per-transaction record (`TxState`) to also store the original client.
-- Look up the original tx, compare its stored client to the record's `client`, and ignore the operation on mismatch (partner error), or document the chosen behavior.
+- ✅ `TxState` now stores the original `client` (recorded when the tx is first seen on deposit/withdrawal).
+- ✅ `dispute`/`resolve`/`chargeback` compare the record's client to the stored client; on mismatch they emit `WARN Client mismatch` and do nothing (no balance change, no phantom account, no lock). This matches the spec's "ignore partner errors" pattern used by items 1–2.
+- ✅ `TxState` flattened from a per-variant enum to a struct `{ status, amount, kind, client }` to avoid repeating fields.
+- Tests: `tests/client_mismatch/{dispute,resolve,chargeback}.csv`.
 
 ## 6. Replace `f32` with a fixed-point / decimal money type
 
@@ -80,5 +82,5 @@ No new implementation is required to scope these; they pin the behavior the item
 - ✅ Dispute on a withdrawal → correct sign, no negative `held`.
 - ✅ Chargeback on a non-disputed tx → ignored (held not driven negative).
 - ✅ Resolve / chargeback on a rejected withdrawal → ignored.
-- Dispute/resolve/chargeback with a mismatched `client` → ignored.
+- ✅ Dispute/resolve/chargeback with a mismatched `client` → ignored.
 - Accumulation/rounding test that would fail under `f32` but passes under the chosen decimal type.

@@ -69,3 +69,7 @@ The spec is not very clear on what to do on `withdrawals`. So the best implement
 This deviates a little from the spec `chargeback` wording ("total should decrease"). My reading is that
 the spec is focused in describing `deposit`. Because it would not make sense to "decrease total" when refunding
 a disputed withdrawal.
+
+## Redundant Client ID
+
+Some messages seems to havee redundant Client ID. Spec is not enterily clear what to do with them. I decided to use them to check everything is fine and generate warnings when not.

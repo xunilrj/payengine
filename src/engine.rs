@@ -9,10 +9,18 @@ enum TxKind {
     Withdrawal,
 }
 
-enum TxState {
-    Normal { amount: f32, kind: TxKind },
-    InDispute { amount: f32, kind: TxKind },
-    Rejected { amount: f32 },
+#[derive(Clone, Copy)]
+enum TxStatus {
+    Normal,
+    InDispute,
+    Rejected,
+}
+
+struct TxState {
+    status: TxStatus,
+    amount: f32,
+    kind: TxKind,
+    client: u64,
 }
 
 #[derive(Default)]
@@ -28,9 +36,11 @@ impl PaymentsEngine {
 
         self.txs_amounts.insert(
             txid,
-            TxState::Normal {
+            TxState {
+                status: TxStatus::Normal,
                 amount,
                 kind: TxKind::Deposit,
+                client: id,
             },
         );
     }
@@ -41,12 +51,19 @@ impl PaymentsEngine {
         // TODO: equals with f32 here
         let tx = if account.available >= amount {
             account.available -= amount;
-            TxState::Normal {
+            TxState {
+                status: TxStatus::Normal,
                 amount,
                 kind: TxKind::Withdrawal,
+                client: id,
             }
         } else {
-            TxState::Rejected { amount }
+            TxState {
+                status: TxStatus::Rejected,
+                amount,
+                kind: TxKind::Withdrawal,
+                client: id,
+            }
         };
 
         self.txs_amounts.insert(txid, tx);
@@ -57,15 +74,24 @@ impl PaymentsEngine {
             warn!(txid = txid, "Tx not found");
             return;
         };
+        if tx.client != id {
+            warn!(
+                txid = txid,
+                expected = tx.client,
+                got = id,
+                "Client mismatch"
+            );
+            return;
+        }
 
-        *tx = match tx {
-            TxState::Normal { amount, kind } => {
-                match kind {
+        match tx.status {
+            TxStatus::Normal => {
+                match tx.kind {
                     TxKind::Deposit => {
                         // Spec: move the deposited funds from available to held.
                         let account = self.accounts.entry(id).or_default();
-                        account.available -= *amount;
-                        account.held += *amount;
+                        account.available -= tx.amount;
+                        account.held += tx.amount;
                     }
                     TxKind::Withdrawal => {
                         // The withdrawn funds already left the account; there is
@@ -74,23 +100,15 @@ impl PaymentsEngine {
                         // reverse (refund) it, keeping `held` non-negative.
                     }
                 }
-                TxState::InDispute {
-                    amount: *amount,
-                    kind: *kind,
-                }
+                tx.status = TxStatus::InDispute;
             }
-            TxState::InDispute { amount, kind } => {
+            TxStatus::InDispute => {
                 warn!(txid = txid, "Tx was already in dispute");
-                TxState::InDispute {
-                    amount: *amount,
-                    kind: *kind,
-                }
             }
-            TxState::Rejected { amount } => {
+            TxStatus::Rejected => {
                 warn!(txid = txid, "Cannot dispute a rejected tx");
-                TxState::Rejected { amount: *amount }
             }
-        };
+        }
     }
 
     pub fn resolve(&mut self, txid: u64, id: u64) {
@@ -98,36 +116,37 @@ impl PaymentsEngine {
             warn!(txid = txid, "Tx not found");
             return;
         };
+        if tx.client != id {
+            warn!(
+                txid = txid,
+                expected = tx.client,
+                got = id,
+                "Client mismatch"
+            );
+            return;
+        }
 
-        *tx = match tx {
-            TxState::Normal { amount, kind } => {
+        match tx.status {
+            TxStatus::Normal => {
                 warn!(txid = txid, "Tx was NOT in dispute");
-                TxState::Normal {
-                    amount: *amount,
-                    kind: *kind,
-                }
             }
-            TxState::InDispute { amount, kind } => {
-                match kind {
+            TxStatus::InDispute => {
+                match tx.kind {
                     TxKind::Deposit => {
                         let account = self.accounts.entry(id).or_default();
-                        account.available += *amount;
-                        account.held -= *amount;
+                        account.available += tx.amount;
+                        account.held -= tx.amount;
                     }
                     TxKind::Withdrawal => {
                         // Nothing was moved on dispute, so nothing to release.
                     }
                 }
-                TxState::Normal {
-                    amount: *amount,
-                    kind: *kind,
-                }
+                tx.status = TxStatus::Normal;
             }
-            TxState::Rejected { amount } => {
+            TxStatus::Rejected => {
                 warn!(txid = txid, "Cannot resolve a rejected tx");
-                TxState::Rejected { amount: *amount }
             }
-        };
+        }
     }
 
     pub fn chargeback(&mut self, txid: u64, id: u64) {
@@ -135,37 +154,39 @@ impl PaymentsEngine {
             warn!(txid = txid, "Tx not found");
             return;
         };
+        if tx.client != id {
+            warn!(
+                txid = txid,
+                expected = tx.client,
+                got = id,
+                "Client mismatch"
+            );
+            return;
+        }
 
-        *tx = match tx {
-            TxState::Normal { amount, kind } => {
+        match tx.status {
+            TxStatus::Normal => {
                 warn!(txid = txid, "Tx was NOT in dispute");
-                TxState::Normal {
-                    amount: *amount,
-                    kind: *kind,
-                }
             }
-            TxState::InDispute { amount, kind } => {
+            TxStatus::InDispute => {
                 let account = self.accounts.entry(id).or_default();
-                match kind {
+                match tx.kind {
                     TxKind::Deposit => {
-                        account.held -= *amount;
+                        // Reverse the deposit: remove the held funds.
+                        account.held -= tx.amount;
                     }
                     TxKind::Withdrawal => {
                         // Reverse the withdrawal: refund the withdrawn funds.
-                        account.available += *amount;
+                        account.available += tx.amount;
                     }
                 }
                 account.locked = true;
-                TxState::Normal {
-                    amount: *amount,
-                    kind: *kind,
-                }
+                tx.status = TxStatus::Normal;
             }
-            TxState::Rejected { amount } => {
+            TxStatus::Rejected => {
                 warn!(txid = txid, "Cannot chargeback a rejected tx");
-                TxState::Rejected { amount: *amount }
             }
-        };
+        }
     }
 
     pub fn iter_accounts(&self) -> impl Iterator<Item = (&u64, &Account)> {
