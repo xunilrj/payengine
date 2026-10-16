@@ -57,3 +57,7 @@ And when creating this ROADMAP.md two points popped out when discussing with cla
 2 - It is not clear what to do with a locked/frozen account. Should we ignore operations to it? I am also going wit hthe safe option here, although this one is seems wrong.
 
 ROADMAP.md was introduced in the commit 6b67a69.
+
+# Removing timestamps from snapshots
+
+I forgot to remove log timestamps from snapshots, making them non deterministic. This is fixed now.

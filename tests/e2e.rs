@@ -22,6 +22,7 @@ fn run_exe(arg: String) -> String {
     let o = duct::cmd!(&exe_path, &arg)
         .dir(repo_root.clone())
         .env("RUST_LOG", "trace")
+        .env("RUST_LOG_NO_TIMESTAMP", "1")
         .stderr_to_stdout()
         .stdout_capture()
         .unchecked()
