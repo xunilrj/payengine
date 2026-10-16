@@ -68,12 +68,17 @@ Dispute/resolve/chargeback records carry their own `client` field, but the engin
 
 Spec: "displaying decimals for round values do not matter" — the spec does **not** require always-4-decimal output (it treats `2` == `2.0`). With `rust_decimal` (item 6), `available`/`held`/`total` serialize in their natural scale-preserving form, which is spec-compliant. No forced 4-place formatting is applied.
 
-## 8b. Parser robustness
+## 8b. Parser robustness — DONE
 
 Moved out of item 2: this is a general input-parsing concern rather than a dispute/chargeback tx-reference concern.
 
-- `record.amount.unwrap()` on deposit/withdrawal in `main.rs` aborts the whole run if a deposit/withdrawal row is missing its amount. Skip malformed rows instead of aborting.
-- More broadly, harden the CSV deserialization loop so a single bad record (bad type, bad u16/u64, bad decimal, missing amount where required) is reported/skipped rather than taking down the entire engine.
+- ✅ The CSV loop in `main.rs` no longer aborts on a bad record. It iterates `rdr.byte_records()` and calls `record.deserialize::<InputCsv>(Some(&headers))` per record, so a single bad row is reported and skipped while processing continues (the run still exits 0 and emits output for the valid rows).
+- ✅ Missing `amount` on a `deposit`/`withdrawal` (which deserializes successfully as `amount: None` and previously panicked on `.unwrap()`) is now a semantic check that skips the row with a report, instead of `record.amount.unwrap()`.
+- ✅ Every skipped row renders an `ariadne` diagnostic on stderr showing `file:line:col` and underlining the **exact offending field** (labeled `type`/`client`/`tx`/`amount`, or `this record` for a structural error like a wrong field count). The file is streamed (not slurped into memory); on error only the single offending line is lazily read back (a second file handle is opened on first error, seeked to the record's byte offset, and read to the next `\n`), so large inputs stay lazy.
+- The culprit field comes from re-validating the already-parsed `ByteRecord`'s fields in order (serde's `invalid_value`/`unknown_variant` errors report `field: None`, so the csv error's own field index is unavailable for the type and amount cases). The field's token span in the raw line is found by a comma split + whitespace trim of that cell.
+- Tests: `tests/nok/{bad_type,bad_client,bad_tx,bad_amount,missing_amount_deposit,missing_amount_withdrawal,too_few_columns,skip_and_continue}.csv`.
+
+ariadne 0.6.0's gutter line number is `idx + 1` over the `Source` and ignores `display_line_offset`, so a single-line `Source` would show gutter `1` regardless of the real file line. To show the real line without reading the whole file, the `Source` is padded with `line − 1` generated newline chars (no file I/O — just newline bytes, never file content); the error line then sits at `Source` index `line − 1` so the gutter shows the true line, and ariadne collapses the label-less padding lines into a single blank margin row.
 
 ## 9. Tests to add
 

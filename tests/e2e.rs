@@ -1,4 +1,4 @@
-use insta::{Settings, assert_debug_snapshot, assert_snapshot};
+use insta::{Settings, assert_snapshot};
 use libtest_mimic::{Arguments, Failed, Trial};
 use std::{path::PathBuf, process::Output, str::FromStr as _, sync::Once, time::Duration};
 

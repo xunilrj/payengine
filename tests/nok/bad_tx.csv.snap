@@ -1,0 +1,13 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/nok/bad_tx.csv"
+Error: field 2: invalid digit found in string
+   ╭─[ tests/nok/bad_tx.csv:2:13 ]
+   │
+ 2 │ deposit, 1, x, 1.0
+   │             ┬  
+   │             ╰── tx
+───╯

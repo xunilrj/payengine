@@ -1,0 +1,13 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/nok/bad_type.csv"
+Error: unknown variant `dep0sit`, expected one of `deposit`, `withdrawal`, `dispute`, `resolve`, `chargeback`
+   ╭─[ tests/nok/bad_type.csv:2:1 ]
+   │
+ 2 │ dep0sit, 1, 1, 1.0
+   │ ───┬───  
+   │    ╰───── type
+───╯

@@ -1,0 +1,13 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/nok/too_few_columns.csv"
+Error: CSV error: record 1 (line: 2, byte: 25): found record with 3 fields, but the previous record has 4 fields
+   ╭─[ tests/nok/too_few_columns.csv:2:1 ]
+   │
+ 2 │ deposit, 1, 1
+   │ ──────┬──────  
+   │       ╰──────── this record
+───╯

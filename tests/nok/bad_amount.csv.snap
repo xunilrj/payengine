@@ -1,0 +1,13 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/nok/bad_amount.csv"
+Error: invalid value: string "abc", expected a Decimal type representing a fixed-point number
+   ╭─[ tests/nok/bad_amount.csv:2:16 ]
+   │
+ 2 │ deposit, 1, 1, abc
+   │                ─┬─  
+   │                 ╰─── amount
+───╯

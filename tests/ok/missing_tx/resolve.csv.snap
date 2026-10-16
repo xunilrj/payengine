@@ -1,0 +1,11 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/ok/missing_tx/resolve.csv"
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(1) }
+TRACE payengine: Record record=InputCsv { ty: Resolve, client: 1, tx: 999, amount: None }
+ WARN payengine::engine: Tx not found txid=999
+client,available,held,total,locked
+1,1,0,1,false

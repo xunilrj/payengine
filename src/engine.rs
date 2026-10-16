@@ -1,6 +1,5 @@
 use tracing::warn;
 
-use crate::Account;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 
@@ -22,6 +21,13 @@ struct TxState {
     amount: Decimal,
     kind: TxKind,
     client: u64,
+}
+
+#[derive(Default)]
+pub struct Account {
+    pub available: Decimal,
+    pub held: Decimal,
+    pub locked: bool,
 }
 
 #[derive(Default)]

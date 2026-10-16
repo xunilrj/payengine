@@ -1,0 +1,17 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/nok/skip_and_continue.csv"
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10) }
+Error: unknown variant `dep0sit`, expected one of `deposit`, `withdrawal`, `dispute`, `resolve`, `chargeback`
+   ╭─[ tests/nok/skip_and_continue.csv:3:1 ]
+   │
+ 3 │ dep0sit, 1, 2, 5.0
+   │ ───┬───  
+   │    ╰───── type
+───╯
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 3, amount: Some(3) }
+client,available,held,total,locked
+1,13,0,13,false

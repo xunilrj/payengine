@@ -1,0 +1,14 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/nok/missing_amount_deposit.csv"
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: None }
+Error: deposit requires an `amount`
+   ╭─[ tests/nok/missing_amount_deposit.csv:2:15 ]
+   │
+ 2 │ deposit, 1, 1,
+   │               │ 
+   │               ╰─ amount
+───╯
