@@ -24,8 +24,8 @@ pub enum TransactionType {
 pub struct InputCsv {
     #[serde(rename = "type")]
     pub ty: TransactionType,
-    pub client: u64,
-    pub tx: u64,
+    pub client: u16,
+    pub tx: u32,
     pub amount: Option<Decimal>,
 }
 

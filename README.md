@@ -81,3 +81,13 @@ Now we are going to improve the issue of precision of `f32`. I decided to use `r
 ## User friendly error
 
 It was not asked but I decided to return more user friendly errors, because it is one thing I believe is very important.
+
+## Changing user id and tx id types
+
+Now I changed user id and transaxtion id to the suggested types. That enticed me to change the accounts `BTreeMap` to a simple pre allocated `Vec`. `O(1)` access, but this is far from being the bottleneck and will almost ways use more memory.
+
+I have also considered what to do with the transaction map. Today we are storing all of them, when we just need transactions in dispute. Huge wasted memory. Any solution would need a lazy way to restore a transaction when a dispute start.
+
+All possibilities seems to complex for a toy project like this. It can scary the reviewer. 
+
+I decided to not pursue this, although I would for this to be memory bounded (ideal for containers etc.).

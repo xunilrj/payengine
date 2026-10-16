@@ -1,95 +1,72 @@
-# Roadmap
+# Roadmap — second pass
 
-Derived from a review of the implementation against the "Types of Transactions" section of the spec. Items are ordered by impact. Nothing here is implemented yet.
+Derived from a re-read of the spec (`Rust Coding Challenge.md`) against the current implementation. The first pass (dispute state machine, missing-tx handling, insufficient-funds guard, decimal type, client-mismatch validation, parser robustness, deterministic output ordering) is implemented and tested. This pass lists the **remaining** spec-compliance gaps, ordered by impact. Nothing here is implemented yet.
 
-## 1. Track dispute state per transaction — DONE
+## 1. Use the spec integer types: `client: u16`, `tx: u32` — DONE
 
-Implemented in `src/engine.rs` as a `TxState` enum (`Normal { amount }` / `InDispute { amount }`) replacing the flat `tx → amount` map.
+The spec states the client column is a valid **u16** client ID and tx is a valid **u32** transaction ID (and repeats "transaction IDs are valid u32 values" as an efficiency hint). The code previously used `u64` for both.
 
-- ✅ Per-transaction record with a state machine carrying amount + dispute status.
-- ✅ `dispute` on a tx already under dispute is ignored (warns, no funds moved).
-- ✅ `resolve` / `chargeback` on a tx not under dispute is ignored (warns, no funds moved).
+- ✅ Changed `client` to `u16` and `tx` to `u32` across `input.rs` (`InputCsv`), `engine.rs` (`TxState.client`, `accounts: BTreeMap<u16, _>`, `txs_amounts: BTreeMap<u32, _>`, every `deposit`/`withdrawal`/`dispute`/`resolve`/`chargeback` signature, `iter_accounts` return type), `main.rs` (`OutputCsv.client`), and `error.rs` (`culprit_field` re-validates client as `u16` and tx as `u32` so the culprit column is flagged correctly on out-of-range values).
+- ✅ `read_line_at`'s `byte_start: u64` is kept — it is a file byte offset from `csv::Position::byte()`, not an id.
+- ✅ Out-of-range ids are now rejected at deserialize time (`field 1: number too large to fit in target type`) and flow through the existing ariadne path, which underlines the offending `client`/`tx` token. No new error-handling code was needed.
+- Tests: `tests/nok/out_of_range_client.csv` (client `70000` > `u16::MAX` → rejected, `client` field underlined, run continues and exits 0). All 33 e2e snapshots pass; existing snapshots are byte-identical (Debug/CSV serialization of small ids is the same for u16/u32/u64).
 
-Assumptions recorded (see also the spec note on locking):
-- After `chargeback`, the tx returns to `Normal`. The spec does not require a terminal tx state; it only requires the *account* to be locked on chargeback, and a locked account has no specified operational effect. Treating chargeback as non-terminal is therefore acceptable.
-- Storing the original client on the tx record is not part of this item; it is tracked under item 5.
+## 2. Chargeback is the final state of the *dispute*, not the transaction — no change needed (DONE)
 
-## 2. Stop panicking on missing / invalid tx references — DONE
+Spec: *"A chargeback is the final state of a dispute and represents the client reversing a transaction."* The "final state" is the **dispute's** lifecycle ending (`dispute → resolve | chargeback`), **not** the transaction becoming permanently non-disputable. The engine already implements this: `chargeback` concludes the dispute by returning the tx to a non-disputed state and freezing the account; a later `resolve`/`chargeback` on that tx is ignored because the tx is no longer `InDispute` — the *dispute* is final and cannot be continued.
 
-`dispute`, `resolve`, and `chargeback` previously called `self.txs_amounts.get(&txid).unwrap()`. The spec says each of these should be **ignored** (treated as a partner error) when the referenced tx does not exist or is not under dispute.
+- ❌ Do **not** add a terminal `TxStatus::ChargedBack` variant. An earlier draft of this item proposed one by misreading "final state of a dispute" as "final state of the transaction." The spec says the former. A terminal tx status would be stricter than the spec requires, and contradicts the first-pass roadmap (item 1), which already recorded: *"After chargeback, the tx returns to Normal. The spec does not require a terminal tx state; it only requires the account to be locked on chargeback."*
+- The residual concern — a *new* `dispute` opened on an already-charged-back tx would re-hold funds — is real **only** if frozen accounts do not reject operations. That is item 3's scope (frozen-account semantics), not a tx-state concern. With item 3's bank-like freeze, the locked account blocks the re-dispute at the account level before any tx lookup. The protection belongs on the account, not the tx.
+- No new tests for a "terminal tx" behavior — that behavior is not spec-required. `tests/ok/dispute_state/chargeback_not_disputed.csv` already covers "chargeback/resolve on a tx not under dispute → ignored."
 
-- ✅ Replaced every `unwrap()` on tx lookup with a guarded `let Some(tx) = ... else { warn; return; }` branch that silently skips the operation.
+## 3. Define frozen/locked account semantics — TODO
 
-## 3. Guard withdrawals against insufficient funds — DONE
+Spec: *"If a chargeback occurs the client's account should be immediately frozen."* The spec does not define what frozen means operationally. `Account.locked` is set on chargeback but never read — deposits, withdrawals, disputes, resolves, and chargebacks all still process on a locked account. The spec invites bank-like assumptions ("think an ATM or a transaction processor").
 
-`withdrawal` does `account.available -= amount` unconditionally. Spec: *"If a client does not have sufficient available funds the withdrawal should fail and the total amount of funds should not change."*
+- ✅ Treat `locked == true` as frozen: `deposit`, `withdrawal`, `dispute`, `resolve`, and `chargeback` on a locked account are ignored with a `WARN` and no balance change. (A frozen ATM account does not accept new activity.)
+- ✅ Record this assumption in the README, replacing the current "this one seems wrong" note.
+- Tests: `tests/ok/locked/{deposit_after, withdrawal_after, dispute_after}.csv`.
+- Open question (decide before implementing): should a `chargeback` on a *different* tx of an already-locked account still be allowed to move `held`/`available`? Bank-like answer: no — once frozen, no movement at all.
 
-- ✅ Check `available >= amount` before debiting; otherwise leave the account unchanged.
-- ✅ Rejected withdrawals are recorded as `TxState::Rejected` (not `Normal`), and `dispute`/`resolve`/`chargeback` ignore a `Rejected` tx, so a failed withdrawal cannot be disputed as if it happened.
-- The `// TODO: equals with f32 here` on the guard comparison remains, but that is an item-6 (decimal type) concern, not item 3.
+## 4. Reject negative amounts — TODO
 
-## 4. Handle disputes on withdrawals — DONE
+The spec's overview is explicitly about fraud ("a malicious actor may try to deposit fiat funds, purchase and withdraw BTC, and then reverse their fiat deposit"). A negative `deposit` would *decrease* `available`, and a negative `withdrawal` would *increase* it — both are dangerous and not something a bank permits. `rust_decimal::Decimal` happily accepts negatives and the engine applies them unchecked.
 
-The spec's dispute/resolve/chargeback formula is deposit-centric and never shows a withdrawal being disputed; the case is underspecified. Implemented a direction-aware `TxKind` on `TxState` so deposits and withdrawals take different paths:
+- ✅ In `InputCsv::validate` (or the engine), reject `amount < 0` for `deposit`/`withdrawal` with an ariadne report on the `amount` field (field index 3) and skip the row.
+- Why: safety; the spec scores "are you doing something dangerous? tell us why."
+- Tests: `tests/nok/negative_deposit.csv`, `tests/nok/negative_withdrawal.csv`.
 
-- ✅ Deposits follow the spec formula exactly (`available -= amount`, `held += amount` on dispute; reverse on resolve; `held -= amount` on chargeback).
-- ✅ A disputed withdrawal only flags the tx as under dispute — `available` and `held` do not move, so `held` never goes negative.
-- ✅ Chargeback on a disputed withdrawal refunds the withdrawn amount (`available += amount`) and locks the account.
-- ✅ Resolve on a disputed withdrawal is a no-op (the withdrawal stands).
-- ✅ `held` is non-negative for both deposit- and withdrawal-originated disputes.
+## 5. Handle top-level I/O errors without panicking — TODO
 
-Recorded deviation (documented in README): a withdrawal chargeback increases `total` by the disputed amount, contradicting the spec's deposit-centric chargeback wording. Refunding a disputed withdrawal is the correct reversal, so this is the intended semantics.
+`Input::from_args` does `args().nth(1).unwrap()`, `from_path(&path).unwrap()`, and `byte_headers().unwrap()`; `write_output` does `serialize(...).unwrap()`. On a missing argument, a missing/unreadable file, or a malformed header, the program panics with a Rust backtrace instead of a clean error. The row-level ariadne machinery is already graceful; the top level is not.
 
-## 5. Validate the client on dispute/resolve/chargeback — DONE
+- ✅ Return a `Result` from `Input::from_args` (and `write_output`); on error, print a short human message to stderr and exit non-zero. Keep the existing row-skip behavior for per-record errors untouched.
+- Why: the spec scores error handling explicitly ("how are you handling errors?"). A panic on a bad CLI arg is the kind of "dangerous" thing to remove.
+- Tests: `tests/cli/missing_arg` and `tests/cli/missing_file` (these may need a small harness variant since they don't take a `.csv` glob path — or assert via a direct `process::Command` in a unit test rather than the snapshot glob).
 
-Dispute/resolve/chargeback records carry their own `client` field, but the engine previously applied the operation to that client without checking it matches the original transaction's client — a mismatched record would move money on the wrong account (or create a phantom account with negative balances). Tx IDs are globally unique, so the original tx's client is authoritative.
+## 6. Output precision — reconsider (low / spec-contradictory)
 
-- ✅ `TxState` now stores the original `client` (recorded when the tx is first seen on deposit/withdrawal).
-- ✅ `dispute`/`resolve`/`chargeback` compare the record's client to the stored client; on mismatch they emit `WARN Client mismatch` and do nothing (no balance change, no phantom account, no lock). This matches the spec's "ignore partner errors" pattern used by items 1–2.
-- ✅ `TxState` flattened from a per-variant enum to a struct `{ status, amount, kind, client }` to avoid repeating fields.
-- Tests: `tests/client_mismatch/{dispute,resolve,chargeback}.csv`.
+Spec (Precision): *"You can assume a precision of four places past the decimal and **should output values with the same level of precision**."* The implementation serializes `rust_decimal` in its natural scale-preserving form (`1.0` → `1`, `5.0` → `5`, `0.1×10` → `1.0`), i.e. not 4 places. The first pass (item 8) decided this was acceptable because the spec also says "displaying decimals for round values do not matter" and treats `2` == `2.0`.
 
-## 6. Replace `f32` with a fixed-point / decimal money type — DONE
+- This is the one place the spec contradicts itself. Strict automated scoring that diffs against 4-place output could flag it. If we want strict compliance, force 4-decimal output (e.g. `Decimal::round_dp(4)` + serialize with fixed scale, or format with `{:>.*}`, 4).
+- Recommendation: leave as-is unless the scorer requires 4 places; the "do not matter" clause is explicit. Listed here for completeness, not for action.
 
-`f32` accumulates rounding error across many sums and cannot represent four-decimal-place money exactly. The spec emphasizes correctness, safety, and behavior on larger data sets.
+## 7. Don't create phantom accounts for rejected withdrawals — TODO (minor)
 
-- ✅ Replaced `f32` with `rust_decimal::Decimal` (pinned `1.43.0`, `features = ["serde"]`) across `Account.available`/`held`, `TxState.amount`, `InputCsv.amount`, `OutputCsv.{available,held,total}`, and all engine method signatures.
-- ✅ The `// TODO: equals with f32 here` is resolved — `Decimal` comparisons are exact, so the withdrawal guard `available >= amount` is now exact.
-- ✅ Input: amounts are accepted verbatim with full precision (rust_decimal supports ~28 significant digits), so >4-place values are preserved.
-- ✅ Output: Decimals serialize in their natural scale-preserving form (significant digits kept; input trailing zeros normalized at parse, e.g. `1.0` → `1`). The spec does not require always-4-decimal output (it states "displaying decimals for round values do not matter" and treats `2` == `2.0`), so this is compliant.
-- No rounding policy needed: the engine only adds/subtracts, which `Decimal` does exactly; no division/multiplication occurs.
-- Tests: `tests/decimal/{float_bug,accumulation,precision6,precision8}.csv`.
+`withdrawal` calls `self.accounts.entry(id).or_default()` *before* the funds check, so a rejected withdrawal on a never-before-seen client creates a `0,0,0,false` row in the output. A bank does not open an account for a failed withdrawal.
 
-## 7. Chargeback correctness precondition — DONE (via items 1 & 2)
+- ✅ Move the account lookup so a rejected withdrawal on a non-existent client does not create an entry (or only `entry` once the funds check passes).
+- Tests: `tests/ok/withdrawal/rejected_new_client.csv` (assert the client does not appear in output).
 
-`chargeback` only decreases `held` (deposits) or refunds `available` (withdrawals). That is correct only when the tx was previously disputed. This is now guarded: a chargeback on a non-existent tx is ignored (item 2), and a chargeback on a tx not under dispute (`Normal`) is ignored with a warning (item 1), so `held` can no longer be driven negative by an out-of-order chargeback. Covered by `tests/dispute_state/chargeback_not_disputed.csv`.
+## 8. Guard against duplicate tx ids — TODO (low / defensive)
 
-## 8. Output precision — DONE (via item 6)
+Spec: *"transaction IDs (tx) are globally unique."* A duplicate `deposit` tx id currently credits `available` twice but overwrites the single `TxState`, so the record no longer matches the balance and a later dispute would only reverse one of the two credits. This "can't happen" per the spec, but it silently corrupts state if it does.
 
-Spec: "displaying decimals for round values do not matter" — the spec does **not** require always-4-decimal output (it treats `2` == `2.0`). With `rust_decimal` (item 6), `available`/`held`/`total` serialize in their natural scale-preserving form, which is spec-compliant. No forced 4-place formatting is applied.
+- ✅ On `deposit`/`withdrawal`, if `txid` already exists in `txs_amounts`, emit a `WARN` and ignore the duplicate (no balance change, no overwrite). This makes the invariant self-enforcing rather than assumed.
+- Tests: `tests/ok/duplicate_tx/{deposit, withdrawal}.csv`.
 
-## 8b. Parser robustness — DONE
+## Notes / accepted tradeoffs (no action)
 
-Moved out of item 2: this is a general input-parsing concern rather than a dispute/chargeback tx-reference concern.
-
-- ✅ The CSV loop in `main.rs` no longer aborts on a bad record. It iterates `rdr.byte_records()` and calls `record.deserialize::<InputCsv>(Some(&headers))` per record, so a single bad row is reported and skipped while processing continues (the run still exits 0 and emits output for the valid rows).
-- ✅ Missing `amount` on a `deposit`/`withdrawal` (which deserializes successfully as `amount: None` and previously panicked on `.unwrap()`) is now a semantic check that skips the row with a report, instead of `record.amount.unwrap()`.
-- ✅ Every skipped row renders an `ariadne` diagnostic on stderr showing `file:line:col` and underlining the **exact offending field** (labeled `type`/`client`/`tx`/`amount`, or `this record` for a structural error like a wrong field count). The file is streamed (not slurped into memory); on error only the single offending line is lazily read back (a second file handle is opened on first error, seeked to the record's byte offset, and read to the next `\n`), so large inputs stay lazy.
-- The culprit field comes from re-validating the already-parsed `ByteRecord`'s fields in order (serde's `invalid_value`/`unknown_variant` errors report `field: None`, so the csv error's own field index is unavailable for the type and amount cases). The field's token span in the raw line is found by a comma split + whitespace trim of that cell.
-- Tests: `tests/nok/{bad_type,bad_client,bad_tx,bad_amount,missing_amount_deposit,missing_amount_withdrawal,too_few_columns,skip_and_continue}.csv`.
-
-ariadne 0.6.0's gutter line number is `idx + 1` over the `Source` and ignores `display_line_offset`, so a single-line `Source` would show gutter `1` regardless of the real file line. To show the real line without reading the whole file, the `Source` is padded with `line − 1` generated newline chars (no file I/O — just newline bytes, never file content); the error line then sits at `Source` index `line − 1` so the gutter shows the true line, and ariadne collapses the label-less padding lines into a single blank margin row.
-
-## 9. Tests to add
-
-No new implementation is required to scope these; they pin the behavior the items above introduce. Tests live in feature subfolders under `tests/`.
-
-- ✅ Dispute / resolve / chargeback on a non-existent tx → ignored, no panic, balances unchanged.
-- ✅ Resolve or chargeback on a tx not under dispute → ignored.
-- ✅ Double dispute on the same tx → second is ignored.
-- ✅ Withdrawal exceeding available → rejected, balances unchanged.
-- ✅ Dispute on a withdrawal → correct sign, no negative `held`.
-- ✅ Chargeback on a non-disputed tx → ignored (held not driven negative).
-- ✅ Resolve / chargeback on a rejected withdrawal → ignored.
-- ✅ Dispute/resolve/chargeback with a mismatched `client` → ignored.
-- ✅ Accumulation/rounding test that would fail under `f32` but passes under the chosen decimal type (`tests/decimal/float_bug.csv`, `accumulation.csv`), plus >4-precision preservation (`precision6.csv`, `precision8.csv`).
+- **Deterministic output ordering** is already handled: `accounts` is a `BTreeMap`, so `iter_accounts()` yields clients in ascending id order. (The spec says row ordering does not matter, but determinism is required for reproducible snapshot tests and stable automated scoring.)
+- **Retaining all tx states indefinitely**: disputes can reference any past tx, so `txs_amounts` must be retained for the whole run. This is inherent to the spec's referential model, not a leak. Streaming the CSV (not slurping) is already done via `csv::Reader::byte_records()` and the lazy one-line error reader.
+- **Variable output scale**: see item 6 — accepted unless strict 4-place scoring is required.

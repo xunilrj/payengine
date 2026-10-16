@@ -1,0 +1,13 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/nok/out_of_range_client.csv"
+Error: field 1: number too large to fit in target type
+   ╭─[ tests/nok/out_of_range_client.csv:2:10 ]
+   │
+ 2 │ deposit, 70000, 1, 1.0
+   │          ──┬──  
+   │            ╰──── client
+───╯

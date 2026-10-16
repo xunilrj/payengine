@@ -90,10 +90,10 @@ pub fn culprit_field(record: &ByteRecord) -> Option<usize> {
     if !TYPE_NAMES.contains(&f0) {
         return Some(0);
     }
-    if field(1).map(|s| s.parse::<u64>().is_err()).unwrap_or(true) {
+    if field(1).map(|s| s.parse::<u16>().is_err()).unwrap_or(true) {
         return Some(1);
     }
-    if field(2).map(|s| s.parse::<u64>().is_err()).unwrap_or(true) {
+    if field(2).map(|s| s.parse::<u32>().is_err()).unwrap_or(true) {
         return Some(2);
     }
     if let Some(f3) = field(3) {

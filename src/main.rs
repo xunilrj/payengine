@@ -12,7 +12,7 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 struct OutputCsv {
-    client: u64,
+    client: u16,
     available: Decimal,
     held: Decimal,
     total: Decimal,

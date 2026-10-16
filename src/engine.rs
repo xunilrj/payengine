@@ -20,7 +20,7 @@ struct TxState {
     status: TxStatus,
     amount: Decimal,
     kind: TxKind,
-    client: u64,
+    client: u16,
 }
 
 #[derive(Default)]
@@ -32,12 +32,12 @@ pub struct Account {
 
 #[derive(Default)]
 pub struct PaymentsEngine {
-    accounts: BTreeMap<u64, Account>,
-    txs_amounts: BTreeMap<u64, TxState>,
+    accounts: BTreeMap<u16, Account>,
+    txs_amounts: BTreeMap<u32, TxState>,
 }
 
 impl PaymentsEngine {
-    pub fn deposit(&mut self, txid: u64, id: u64, amount: Decimal) {
+    pub fn deposit(&mut self, txid: u32, id: u16, amount: Decimal) {
         let account = self.accounts.entry(id).or_default();
         account.available += amount;
 
@@ -52,7 +52,7 @@ impl PaymentsEngine {
         );
     }
 
-    pub fn withdrawal(&mut self, txid: u64, id: u64, amount: Decimal) {
+    pub fn withdrawal(&mut self, txid: u32, id: u16, amount: Decimal) {
         let account = self.accounts.entry(id).or_default();
 
         let tx = if account.available >= amount {
@@ -75,7 +75,7 @@ impl PaymentsEngine {
         self.txs_amounts.insert(txid, tx);
     }
 
-    pub fn dispute(&mut self, txid: u64, id: u64) {
+    pub fn dispute(&mut self, txid: u32, id: u16) {
         let Some(tx) = self.txs_amounts.get_mut(&txid) else {
             warn!(txid = txid, "Tx not found");
             return;
@@ -117,7 +117,7 @@ impl PaymentsEngine {
         }
     }
 
-    pub fn resolve(&mut self, txid: u64, id: u64) {
+    pub fn resolve(&mut self, txid: u32, id: u16) {
         let Some(tx) = self.txs_amounts.get_mut(&txid) else {
             warn!(txid = txid, "Tx not found");
             return;
@@ -155,7 +155,7 @@ impl PaymentsEngine {
         }
     }
 
-    pub fn chargeback(&mut self, txid: u64, id: u64) {
+    pub fn chargeback(&mut self, txid: u32, id: u16) {
         let Some(tx) = self.txs_amounts.get_mut(&txid) else {
             warn!(txid = txid, "Tx not found");
             return;
@@ -195,7 +195,7 @@ impl PaymentsEngine {
         }
     }
 
-    pub fn iter_accounts(&self) -> impl Iterator<Item = (&u64, &Account)> {
+    pub fn iter_accounts(&self) -> impl Iterator<Item = (&u16, &Account)> {
         self.accounts.iter()
     }
 }
