@@ -18,6 +18,8 @@ enum TransactionType {
     Dispute,
     #[serde(rename = "resolve")]
     Resolve,
+    #[serde(rename = "chargeback")]
+    Chargeback,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,6 +75,7 @@ fn main() {
             }
             TransactionType::Dispute => engine.dispute(record.tx, record.client),
             TransactionType::Resolve => engine.resolve(record.tx, record.client),
+            TransactionType::Chargeback => engine.chargeback(record.tx, record.client),
         };
     }
 

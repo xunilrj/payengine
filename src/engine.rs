@@ -39,6 +39,14 @@ impl PaymentsEngine {
         account.held -= amount;
     }
 
+    pub fn chargeback(&mut self, txid: u64, id: u64) {
+        let amount = self.txs_amounts.get(&txid).unwrap();
+        let account = self.accounts.entry(id).or_default();
+
+        account.held -= amount;
+        account.locked = true;
+    }
+
     pub fn iter_accounts(&self) -> impl Iterator<Item = (&u64, &Account)> {
         self.accounts.iter()
     }
