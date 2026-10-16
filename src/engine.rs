@@ -1,10 +1,17 @@
+use tracing::warn;
+
 use crate::Account;
 use std::collections::HashMap;
+
+enum TxState {
+    Normal { amount: f32 },
+    InDispute { amount: f32 },
+}
 
 #[derive(Default)]
 pub struct PaymentsEngine {
     accounts: HashMap<u64, Account>,
-    txs_amounts: HashMap<u64, f32>,
+    txs_amounts: HashMap<u64, TxState>,
 }
 
 impl PaymentsEngine {
@@ -12,39 +19,68 @@ impl PaymentsEngine {
         let account = self.accounts.entry(id).or_default();
         account.available += amount;
 
-        self.txs_amounts.insert(txid, amount);
+        self.txs_amounts.insert(txid, TxState::Normal { amount });
     }
 
     pub fn withdrawal(&mut self, txid: u64, id: u64, amount: f32) {
         let account = self.accounts.entry(id).or_default();
         account.available -= amount;
 
-        self.txs_amounts.insert(txid, -amount);
+        self.txs_amounts
+            .insert(txid, TxState::Normal { amount: -amount });
     }
 
     pub fn dispute(&mut self, txid: u64, id: u64) {
-        let amount = self.txs_amounts.get(&txid).unwrap();
-        let account = self.accounts.entry(id).or_default();
+        let tx = self.txs_amounts.get_mut(&txid).unwrap();
 
-        // TODO: What to do if the dispute is a withdrawal?
-        account.available -= amount;
-        account.held += amount;
+        *tx = match tx {
+            TxState::Normal { amount } => {
+                // TODO: What to do if the dispute is a withdrawal?
+                let account = self.accounts.entry(id).or_default();
+                account.available -= *amount;
+                account.held += *amount;
+
+                TxState::InDispute { amount: *amount }
+            }
+            TxState::InDispute { amount } => {
+                warn!(txid = txid, "Tx was already in dispute");
+                TxState::InDispute { amount: *amount }
+            }
+        };
     }
 
     pub fn resolve(&mut self, txid: u64, id: u64) {
-        let amount = self.txs_amounts.get(&txid).unwrap();
-        let account = self.accounts.entry(id).or_default();
+        let tx = self.txs_amounts.get_mut(&txid).unwrap();
 
-        account.available += amount;
-        account.held -= amount;
+        *tx = match tx {
+            TxState::Normal { amount } => {
+                warn!(txid = txid, "Tx was NOT in dispute");
+                TxState::Normal { amount: *amount }
+            }
+            TxState::InDispute { amount } => {
+                let account = self.accounts.entry(id).or_default();
+                account.available += *amount;
+                account.held -= *amount;
+                TxState::Normal { amount: *amount }
+            }
+        };
     }
 
     pub fn chargeback(&mut self, txid: u64, id: u64) {
-        let amount = self.txs_amounts.get(&txid).unwrap();
-        let account = self.accounts.entry(id).or_default();
+        let tx = self.txs_amounts.get_mut(&txid).unwrap();
 
-        account.held -= amount;
-        account.locked = true;
+        *tx = match tx {
+            TxState::Normal { amount } => {
+                warn!(txid = txid, "Tx was NOT in dispute");
+                TxState::Normal { amount: *amount }
+            }
+            TxState::InDispute { amount } => {
+                let account = self.accounts.entry(id).or_default();
+                account.held -= *amount;
+                account.locked = true;
+                TxState::Normal { amount: *amount }
+            }
+        };
     }
 
     pub fn iter_accounts(&self) -> impl Iterator<Item = (&u64, &Account)> {
