@@ -55,3 +55,5 @@ I will remove this file when it is complete. Again I would never do this in prac
 And when creating this ROADMAP.md two points popped out when discussing with claude:
 1 - It is not clear that chargerback should put the transaction in a "final state", that means this transaction cannot be disputed anymore. I went with the safe choice of returning the transaction to `Normal`;
 2 - It is not clear what to do with a locked/frozen account. Should we ignore operations to it? I am also going wit hthe safe option here, although this one is seems wrong.
+
+ROADMAP.md was introduced in the commit 6b67a69.

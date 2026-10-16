@@ -3,12 +3,12 @@ source: tests/e2e.rs
 ---
 exit status: 0
 
-2026-10-16T13:13:32.416251Z TRACE payengine: Input file input="tests/ok/simple.csv"
-2026-10-16T13:13:32.416729Z TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(1.0) }
-2026-10-16T13:13:32.416738Z TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
-2026-10-16T13:13:32.416741Z TRACE payengine: Record record=InputCsv { ty: Resolve, client: 1, tx: 1, amount: None }
-2026-10-16T13:13:32.416744Z TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 1, tx: 2, amount: Some(1.0) }
-2026-10-16T13:13:32.416748Z TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 2, amount: None }
-2026-10-16T13:13:32.416751Z TRACE payengine: Record record=InputCsv { ty: Chargeback, client: 1, tx: 2, amount: None }
+2026-10-16T13:32:59.451315Z TRACE payengine: Input file input="tests/ok/simple.csv"
+2026-10-16T13:32:59.451567Z TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(1.0) }
+2026-10-16T13:32:59.451576Z TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
+2026-10-16T13:32:59.451579Z TRACE payengine: Record record=InputCsv { ty: Resolve, client: 1, tx: 1, amount: None }
+2026-10-16T13:32:59.451580Z TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 1, tx: 2, amount: Some(1.0) }
+2026-10-16T13:32:59.451583Z TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 2, amount: None }
+2026-10-16T13:32:59.451584Z TRACE payengine: Record record=InputCsv { ty: Chargeback, client: 1, tx: 2, amount: None }
 client,available,held,total,locked
 1,1.0,0.0,1.0,true

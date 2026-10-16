@@ -31,7 +31,10 @@ impl PaymentsEngine {
     }
 
     pub fn dispute(&mut self, txid: u64, id: u64) {
-        let tx = self.txs_amounts.get_mut(&txid).unwrap();
+        let Some(tx) = self.txs_amounts.get_mut(&txid) else {
+            warn!(txid = txid, "Tx not found");
+            return;
+        };
 
         *tx = match tx {
             TxState::Normal { amount } => {
@@ -50,7 +53,10 @@ impl PaymentsEngine {
     }
 
     pub fn resolve(&mut self, txid: u64, id: u64) {
-        let tx = self.txs_amounts.get_mut(&txid).unwrap();
+        let Some(tx) = self.txs_amounts.get_mut(&txid) else {
+            warn!(txid = txid, "Tx not found");
+            return;
+        };
 
         *tx = match tx {
             TxState::Normal { amount } => {
@@ -67,7 +73,10 @@ impl PaymentsEngine {
     }
 
     pub fn chargeback(&mut self, txid: u64, id: u64) {
-        let tx = self.txs_amounts.get_mut(&txid).unwrap();
+        let Some(tx) = self.txs_amounts.get_mut(&txid) else {
+            warn!(txid = txid, "Tx not found");
+            return;
+        };
 
         *tx = match tx {
             TxState::Normal { amount } => {

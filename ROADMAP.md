@@ -14,12 +14,11 @@ Assumptions recorded (see also the spec note on locking):
 - After `chargeback`, the tx returns to `Normal`. The spec does not require a terminal tx state; it only requires the *account* to be locked on chargeback, and a locked account has no specified operational effect. Treating chargeback as non-terminal is therefore acceptable.
 - Storing the original client on the tx record is not part of this item; it is tracked under item 5.
 
-## 2. Stop panicking on missing / invalid tx references
+## 2. Stop panicking on missing / invalid tx references — DONE
 
-`dispute`, `resolve`, and `chargeback` all call `self.txs_amounts.get(&txid).unwrap()`. The spec says each of these should be **ignored** (treated as a partner error) when the referenced tx does not exist or is not under dispute.
+`dispute`, `resolve`, and `chargeback` previously called `self.txs_amounts.get(&txid).unwrap()`. The spec says each of these should be **ignored** (treated as a partner error) when the referenced tx does not exist or is not under dispute.
 
-- Replace every `unwrap()` on tx lookup with a guarded branch that silently skips the operation.
-- Same for `record.amount.unwrap()` on deposit/withdrawal in `main.rs`: skip malformed rows instead of aborting the whole run.
+- ✅ Replaced every `unwrap()` on tx lookup with a guarded `let Some(tx) = ... else { warn; return; }` branch that silently skips the operation.
 
 ## 3. Guard withdrawals against insufficient funds
 
@@ -55,6 +54,13 @@ Dispute/resolve/chargeback records carry their own `client` field, but the engin
 ## 8. Output precision
 
 Spec: output values with four places past the decimal. Current output relies on `f32` default formatting. Once the money type is settled (item 6), ensure the serialized `available`, `held`, and `total` are emitted with the required precision.
+
+## 8b. Parser robustness
+
+Moved out of item 2: this is a general input-parsing concern rather than a dispute/chargeback tx-reference concern.
+
+- `record.amount.unwrap()` on deposit/withdrawal in `main.rs` aborts the whole run if a deposit/withdrawal row is missing its amount. Skip malformed rows instead of aborting.
+- More broadly, harden the CSV deserialization loop so a single bad record (bad type, bad u16/u64, bad decimal, missing amount where required) is reported/skipped rather than taking down the entire engine.
 
 ## 9. Tests to add
 
