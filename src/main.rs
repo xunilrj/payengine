@@ -12,6 +12,8 @@ use crate::engine::PaymentsEngine;
 enum TransactionType {
     #[serde(rename = "deposit")]
     Deposit,
+    #[serde(rename = "withdrawal")]
+    Withdrawal,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,6 +62,7 @@ fn main() {
 
         match record.ty {
             TransactionType::Deposit => engine.deposit(record.client, record.amount),
+            TransactionType::Withdrawal => engine.withdrawal(record.client, record.amount),
         };
     }
 
