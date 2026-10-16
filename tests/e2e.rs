@@ -1,6 +1,6 @@
 use insta::{Settings, assert_debug_snapshot, assert_snapshot};
 use libtest_mimic::{Arguments, Failed, Trial};
-use std::{path::PathBuf, sync::Once};
+use std::{path::PathBuf, process::Output, str::FromStr as _, sync::Once, time::Duration};
 
 static EXE_COMPILATION: Once = Once::new();
 
@@ -14,13 +14,28 @@ fn compile_exe() {
 }
 
 fn run_exe(arg: String) -> String {
-    let args = vec!["r", "--", &arg];
-    let o = std::process::Command::new("cargo")
-        .args(args)
+    let cargo_manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let repo_root = PathBuf::from_str(&cargo_manifest_dir)
+        .unwrap()
+        .to_path_buf();
+    let exe_path = repo_root.join("target/release/payengine");
+    let o = duct::cmd!(&exe_path, &arg)
+        .dir(repo_root.clone())
         .env("RUST_LOG", "trace")
-        .output()
+        .stderr_to_stdout()
+        .stdout_capture()
+        .unchecked()
+        .start()
         .unwrap();
-    String::from_utf8(o.stdout).unwrap()
+
+    let Some(Output { status, stdout, .. }) = o.wait_timeout(Duration::from_secs(30)).unwrap()
+    else {
+        panic!("test timeout");
+    };
+
+    let mut snapshot = format!("{status}\n\n");
+    snapshot.push_str(str::from_utf8(&stdout).unwrap());
+    snapshot
 }
 
 fn main() {

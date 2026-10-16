@@ -37,3 +37,7 @@ For that I will use `insta` and `libtest-mimic`. That means that a simple `cargo
 A "polemic" decision is why use `cargo r` to run the app, and not call a function inside the crate directly. There are disadvantages of callign the compiled exe for sure, but there are also advantages: we can run test in parallel more easily; one crashing test does not kill others; we can capture log and put in the snapshot etc...
 
 It is a little bit ugly, I will give you that, but is something I already use in other repos, and is something I like.
+
+# Quick fix to remove branding
+
+I used AI to create the recipe `search-history` to help me certify no branding exists in the repo.

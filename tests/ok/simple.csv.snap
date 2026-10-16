@@ -1,7 +1,11 @@
 ---
 source: tests/e2e.rs
 ---
-2026-10-16T12:02:51.224074Z TRACE payengine: Input file input="tests/ok/simple.csv"
-2026-10-16T12:02:51.224590Z TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: 1.0 }
-client,available,held,total,locked
-1,1.0,0.0,1.0,false
+exit status: 101
+
+2026-10-16T12:33:55.033144Z TRACE payengine: Input file input="tests/ok/simple.csv"
+2026-10-16T12:33:55.033422Z TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: 1.0 }
+
+thread 'main' (30173754) panicked at src/main.rs:58:29:
+a CSV record: Error(Deserialize { pos: Some(Position { byte: 44, line: 3, record: 2 }), err: DeserializeError { field: None, kind: Message("unknown variant `withdrawal`, expected `deposit`") } })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
