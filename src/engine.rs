@@ -90,9 +90,15 @@ impl PaymentsEngine {
             );
             return Err(EngineError::NegativeAmount);
         }
-        let account = self.get_account(id);
 
-        if account.available >= amount {
+        // Read the available balance without creating an account
+        let available = self
+            .accounts
+            .get(&id)
+            .map(|a| a.available)
+            .unwrap_or_default();
+        if available >= amount {
+            let account = self.get_account(id);
             account.available -= amount;
             self.txs_amounts.insert(
                 txid,
@@ -295,6 +301,26 @@ mod tests {
             // Funds unchanged by the rejected deposit.
             assert_eq!(e.get_account(1).available, dec!(0));
         }
+
+        #[test]
+        fn zero_is_recorded_and_disputable() {
+            let mut e = PaymentsEngine::default();
+            assert!(e.deposit(1, 1, dec!(0)).is_ok());
+
+            // A zero deposit still opens the account and records a real tx.
+            let a = e.get_account(1);
+            assert_eq!(a.available, dec!(0));
+            assert_eq!(a.held, dec!(0));
+
+            // The tx is recorded and can be disputed, then charged back.
+            assert!(e.dispute(1, 1).is_ok());
+            assert!(e.chargeback(1, 1).is_ok());
+
+            let a = e.get_account(1);
+            assert!(a.locked);
+            assert_eq!(a.available, dec!(0));
+            assert_eq!(a.held, dec!(0));
+        }
     }
 
     mod withdrawal {
@@ -339,6 +365,46 @@ mod tests {
             e.lock_account(1);
             assert_eq!(e.withdrawal(2, 1, dec!(4)), Err(EngineError::AccountFrozen));
             assert_eq!(e.get_account(1).available, dec!(0));
+        }
+
+        #[test]
+        fn rejected_on_unknown_client_creates_no_account() {
+            let mut e = PaymentsEngine::default();
+            assert_eq!(
+                e.withdrawal(1, 1, dec!(5)),
+                Err(EngineError::InsufficientFunds)
+            );
+            // A bank does not open an account for a failed withdrawal.
+            assert!(!e.iter_accounts().any(|(c, _)| *c == 1));
+        }
+
+        #[test]
+        fn zero_on_existing_is_recorded_and_disputable() {
+            let mut e = PaymentsEngine::default();
+
+            e.deposit(1, 1, dec!(10)).unwrap();
+            assert!(e.withdrawal(2, 1, dec!(0)).is_ok());
+            assert_eq!(e.get_account(1).available, dec!(10));
+            assert!(e.dispute(2, 1).is_ok());
+            assert!(e.chargeback(2, 1).is_ok());
+
+            let a = e.get_account(1);
+            assert!(a.locked);
+            assert_eq!(a.available, dec!(10));
+        }
+
+        #[test]
+        fn zero_on_unknown_client_is_recorded_and_disputable() {
+            let mut e = PaymentsEngine::default();
+
+            assert!(e.withdrawal(1, 1, dec!(0)).is_ok());
+
+            let a = e.get_account(1);
+            assert_eq!(a.available, dec!(0));
+            assert!(!a.locked);
+            assert!(e.dispute(1, 1).is_ok());
+            assert!(e.chargeback(1, 1).is_ok());
+            assert!(e.get_account(1).locked);
         }
     }
 

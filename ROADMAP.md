@@ -46,19 +46,20 @@ The spec's overview is explicitly about fraud ("a malicious actor may try to dep
 - Why: the spec scores error handling explicitly ("how are you handling errors?"). A panic on a bad CLI arg is the kind of "dangerous" thing to remove.
 - Tests: `tests/cli/missing_arg` and `tests/cli/missing_file` (these may need a small harness variant since they don't take a `.csv` glob path — or assert via a direct `process::Command` in a unit test rather than the snapshot glob).
 
-## 6. Output precision — reconsider (low / spec-contradictory)
+## 6. Output precision — DONE (spec-contradictory)
 
 Spec (Precision): *"You can assume a precision of four places past the decimal and **should output values with the same level of precision**."* The implementation serializes `rust_decimal` in its natural scale-preserving form (`1.0` → `1`, `5.0` → `5`, `0.1×10` → `1.0`), i.e. not 4 places. The first pass (item 8) decided this was acceptable because the spec also says "displaying decimals for round values do not matter" and treats `2` == `2.0`.
 
 - This is the one place the spec contradicts itself. Strict automated scoring that diffs against 4-place output could flag it. If we want strict compliance, force 4-decimal output (e.g. `Decimal::round_dp(4)` + serialize with fixed scale, or format with `{:>.*}`, 4).
-- Recommendation: leave as-is unless the scorer requires 4 places; the "do not matter" clause is explicit. Listed here for completeness, not for action.
+- ✅ Decision: keep the natural scale-preserving output, reading the "four places" clause as a *minimum* precision guarantee (never truncate below 4 significant places) rather than a fixed-width mandate. The spec's own "displaying decimals for round values do not matter" / `2` == `2.0` example overrides the fixed-width reading. Documented in `README.md` ("Output precision contradiction"), which quotes both contradictory statements verbatim.
+- ✅ Demonstrated by `tests/ok/decimal/single_deposit_per_scale.csv` (scales 0/2/3/4/5/8/10dp each preserved in the output — no truncation) and `tests/ok/decimal/addition_keeps_scale.csv` (6dp preserved through addition). Trailing zeros are normalized by `rust_decimal` (`1.50` → `1.5`); significant-digit scale is preserved.
 
-## 7. Don't create phantom accounts for rejected withdrawals — TODO (minor)
+## 7. Don't create phantom accounts for rejected withdrawals — DONE (minor)
 
-`withdrawal` calls `self.accounts.entry(id).or_default()` *before* the funds check, so a rejected withdrawal on a never-before-seen client creates a `0,0,0,false` row in the output. A bank does not open an account for a failed withdrawal.
+`withdrawal` called `self.accounts.entry(id).or_default()` *before* the funds check, so a rejected withdrawal on a never-before-seen client created a `0,0,0,false` row in the output. A bank does not open an account for a failed withdrawal.
 
-- ✅ Move the account lookup so a rejected withdrawal on a non-existent client does not create an entry (or only `entry` once the funds check passes).
-- Tests: `tests/ok/withdrawal/rejected_new_client.csv` (assert the client does not appear in output).
+- ✅ The funds check now reads the available balance via `self.accounts.get(&id)` (no entry creation) and only calls `get_account(id)` (which `entry().or_default()`s) once the check passes. A rejected withdrawal on an unknown client records the `Rejected` tx state (so a later dispute is still refused) but creates no account row.
+- Tests: unit test `engine::tests::withdrawal::rejected_on_unknown_client_creates_no_account` (asserts `InsufficientFunds` and that client 1 does not appear in `iter_accounts`). No e2e snapshot test, per scope.
 
 ## 8. Guard against duplicate tx ids — TODO (low / defensive)
 

@@ -105,3 +105,19 @@ I was reluctant because there is no "unlock" message. But seems to be the correc
 ## Improving validation
 
 I am also not sure what is the best way to deal with invalid input, like negative values for deposit. I decided to be an error and kill the application.
+
+## Output precision contradiction
+
+The spec contradicts itself on how to display output decimals, so I had to pick one reading.
+
+> Spacing and displaying decimals for round values do not matter. Row ordering also does not matter. The above output will be considered the exact same as the following
+
+> You can assume a precision of **four places past the decimal** and should output values with the same level of precision.
+
+I am reading the second phrase as: "you should be able to output at least 4 digits of precision". That means if we have something like 10.123456789, output should never truncate/round it to 10.123, because it has less precision than the grader expects. But it is not a problem to emit more, or to round 1.0000 to 1.
+
+## Amount = Zero
+
+I had the decide what to do with amount equals zero. It seems a trivial case, but what happens if this transaction is disputed. I decide to let these transaction exist and treat them as normal.
+
+It seems strange a deposit of zero be disputed. And because of that  the account being locked. But with the "bank mentality", if is strange it is better to play safe and let a human look at it ad see what is happening.
