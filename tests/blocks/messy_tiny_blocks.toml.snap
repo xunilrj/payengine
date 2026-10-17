@@ -1,0 +1,67 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+assert_stdout_is_csv: ok
+
+--- stdout ---
+client,available,held,total,locked
+1,13.5,0,13.5,false
+2,0,0,0,true
+3,0.75,0,0.75,false
+--- stderr ---
+TRACE payengine::input: input file opened path="target/e2e/tests/blocks/messy_tiny_blocks.csv"
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 1, amount: 10.0 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 2, tx: 2, amount: 5.5000 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 3, tx: 3, amount: 1 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 4, amount: 0.5 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 5, amount: 2 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 6, amount: 1.0 }
+TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 1, tx: 1 }
+TRACE payengine::sharded: transaction parsed transaction=Resolve { client: 1, tx: 1 }
+TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 2, tx: 2 }
+TRACE payengine::sharded: transaction parsed transaction=Chargeback { client: 2, tx: 2 }
+TRACE payengine::sharded: transaction parsed transaction=Withdrawal { client: 3, tx: 11, amount: 0.25 }
+Error: expected at most 4 fields, found 5
+    ╭─[ target/e2e/tests/blocks/messy_tiny_blocks.csv:13:1 ]
+    │
+ 13 │ withdrawal,3,7,0.25,extra
+    │ ────────────┬────────────  
+    │             ╰────────────── this record
+────╯
+Error: deposit requires an `amount`
+    ╭─[ target/e2e/tests/blocks/messy_tiny_blocks.csv:14:1 ]
+    │
+ 14 │ deposit,1,8
+    │ ─────┬─────  
+    │      ╰─────── amount
+────╯
+Error: missing `tx`
+    ╭─[ target/e2e/tests/blocks/messy_tiny_blocks.csv:15:1 ]
+    │
+ 15 │ dispute,1
+    │ ────┬────  
+    │     ╰────── tx
+────╯
+Error: unknown transaction type `Deposit`, expected deposit, withdrawal, dispute, resolve or chargeback
+    ╭─[ target/e2e/tests/blocks/messy_tiny_blocks.csv:16:1 ]
+    │
+ 16 │ Deposit,1,9,1.0
+    │ ───┬───  
+    │    ╰───── type
+────╯
+Error: expected at most 4 fields, found 5
+    ╭─[ target/e2e/tests/blocks/messy_tiny_blocks.csv:17:1 ]
+    │
+ 17 │ deposit,1,10,1,0
+    │ ────────┬───────  
+    │         ╰───────── this record
+────╯
+Error: unknown transaction type ``, expected deposit, withdrawal, dispute, resolve or chargeback
+    ╭─[ target/e2e/tests/blocks/messy_tiny_blocks.csv:18:4 ]
+    │
+ 18 │ 
+    │    │ 
+    │    ╰─ type
+────╯
+warning: skipped 6 invalid input row(s)

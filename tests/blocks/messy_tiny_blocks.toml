@@ -1,0 +1,42 @@
+# The same input as tests/nok/messy.toml, split into 3-byte blocks parsed by
+# 4 threads: nearly every line spans several blocks, CRLF pairs and quoted
+# fields are cut in the middle. The output and every error (line, column,
+# message) must be identical to the single-block run.
+# A file full of small real-world formatting issues, one per line. Valid-but-
+# unusual rows must be accepted; broken rows must be reported and skipped
+# without stopping the run.
+#
+# `merge_output = false` snapshots stdout and stderr separately, and
+# `assert_stdout_is_csv = true` asserts stdout is nothing but the accounts
+# CSV: every log line and every diagnostic must go to stderr.
+#
+# Escapes keep invisible characters explicit: `\r` (CRLF endings), `\t` (tabs)
+# and `\u0020` (a whitespace-only line editors would strip).
+merge_output = false
+assert_stdout_is_csv = true
+
+csv = """
+type ,  client,tx , amount \r
+ deposit , 1 , 1 , 10.0 \r
+\r
+deposit,2,2,5.5000
+\tdeposit\t,\t3\t,\t3\t,\t1\t
+deposit,1,4,.5
+deposit,1,5,2.
+"deposit","1","6","1.0"
+dispute,1,1
+resolve,1,1,
+dispute,2,2,999
+chargeback,2,2
+withdrawal,3,7,0.25,extra
+deposit,1,8
+dispute,1
+Deposit,1,9,1.0
+deposit,1,10,1,0
+\u0020\u0020\u0020
+withdrawal,3,11,0.25
+"""
+
+[env]
+PAYENGINE_BLOCK_SIZE = "3"
+PAYENGINE_PARSERS = "4"

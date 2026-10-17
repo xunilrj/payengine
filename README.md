@@ -396,3 +396,70 @@ Benchmark 4: default
 ```
 
 The good part of these changes is that, they are where AI shines. We can prototype these changes quite fast and see results.
+
+Running the profile again show some small possibles improvements. But the biggest improvement will come from parsing the CSV  in parallel. 
+
+For that I tried `rayon`. But the code was too ugly. Apart from the fact that is has its own Thread Pool.
+
+```rust
+for window in blocks.chunks(WINDOW) {
+    pool.install(|| {
+        slots[..window.len()]
+            .par_iter_mut()               // slot i ↔ block i: order comes from the index
+            .zip(window)
+            .for_each(|(slot, block)| parse_into(slot, &file, block, &columns));
+    });
+    for slot in &mut slots[..window.len()] {
+        for raw in slot.rows.drain(..) { /* fix line, sharded.apply(...) */ }  // drain keeps capacity
+        errors.extend(slot.errors.drain(..).map(/* fix line */));
+        line_offset += slot.newlines;
+    }
+}
+```
+
+Then I tried `par_iter`. The code was closer to what I was expecting. But it depends on crossbeam. Which means another channel and Thread Pool crate.
+
+```
+(0..blocks)
+    .parallel_map(|k| parse_block(k))          // parsed on worker threads
+    .for_each(|txs| for tx in txs {            // runs on *this* thread, in block order
+        sharded.apply(tx).unwrap();
+    });
+```
+
+I decided to ask `Claude` to help me building something on top of `Tokio` + `flume`. What we are using already.
+A simple ordered channel with in-fligh limit.
+
+With that I finally happy with the performance.
+
+```
+Benchmark 1: 1 shard, 1 parser
+  Time (mean ± σ):      1.091 s ±  0.036 s    [User: 1.658 s, System: 0.401 s]
+  Range (min … max):    1.042 s …  1.166 s    10 runs
+
+Benchmark 2: 4 shards, 4 parsers
+  Time (mean ± σ):     335.1 ms ±  15.4 ms    [User: 1965.4 ms, System: 549.6 ms]
+  Range (min … max):   320.9 ms … 376.1 ms    10 runs
+
+Benchmark 3: 8 shards, 8 parsers
+  Time (mean ± σ):     275.9 ms ±  29.1 ms    [User: 2163.9 ms, System: 710.0 ms]
+  Range (min … max):   262.7 ms … 357.1 ms    10 runs
+
+  Warning: Statistical outliers were detected. Consider re-running this benchmark on a quiet system without any interferences from other programs. It might help to use the '--warmup' or '--prepare' options.
+
+Benchmark 4: default
+  Time (mean ± σ):     264.1 ms ±   5.4 ms    [User: 2120.5 ms, System: 656.6 ms]
+  Range (min … max):   257.6 ms … 275.7 ms    11 runs
+```
+
+We may be able to improve this. But I am happy with this for now.
+
+## How the parallel parser works
+
+After reading the header line, the file is split into fixed-size byte blocks. A `block-producer` thread sends the block ranges to the ordered thread pool (`src/ordered_pool.rs`), where N threads read their range with positional reads and parse it with the `csv` crate. 
+
+A line belongs to the block where it starts, so a block skips a partial first line and reads past its end to finish its last one. Each line is parsed exactly once, and no worker needs another worker's data. 
+
+Workers only do the cheap checks (type, client, tx) and keep the amount as raw text. The channel returns the parsed blocks in file order, and never lets more than two blocks per parser be in flight, so memory stays bounded whatever the file size. T
+
+he main thread receives them in that order, turns block-relative line numbers into file line numbers, and routes each row by `client % shards` to the shards, which parse the amount and apply the transaction. File order is therefore preserved for every client.

@@ -8,12 +8,16 @@ use crate::log::setup_log;
 use anyhow::{Context, bail};
 use csv::WriterBuilder;
 use payengine::engine::PaymentsEngine;
+use payengine::ordered_pool::ordered_thread_pool;
 use payengine::sharded::{ShardMessage, ShardedPaymentEngine};
 use rust_decimal::Decimal;
 use serde::Serialize;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const SHARDS_ENV: &str = "PAYENGINE_SHARDS";
+const PARSERS_ENV: &str = "PAYENGINE_PARSERS";
+const BLOCK_SIZE_ENV: &str = "PAYENGINE_BLOCK_SIZE";
 const SORT_OUTPUT_ENV: &str = "PAYENGINE_SORT_OUTPUT";
 
 #[derive(Debug, Serialize)]
@@ -50,23 +54,53 @@ fn run() -> anyhow::Result<()> {
         })
         .build()
         .context("failed to start the runtime")?;
+
     let mut sharded = ShardedPaymentEngine::new(shards, runtime.handle());
 
-    // There is no way to name a blocking thread in tokio, so we create one
-    // here manually.
-    let (sharded, path, mut errors) = std::thread::Builder::new()
-        .name("csv-parser".to_string())
-        .spawn(move || {
-            let mut input = Input::from_args()?;
-            for record in &mut input {
-                sharded.apply(ShardMessage::Raw(record))?;
+    let input = Arc::new(Input::from_args()?);
+    let parsers = quantity_of_parsers()?;
+    let block_size = block_size()?;
+
+    // Blocks are read and parsed by `parsers` threads, and received here in
+    // file order, at most two per parser ahead of the shards.
+    let (mut blocks, parsed_blocks) = ordered_thread_pool("csv-parser", parsers, 2 * parsers, {
+        let input = input.clone();
+        move |block| input.parse_block(block)
+    });
+    let producer = std::thread::Builder::new()
+        .name("block-producer".to_string())
+        .spawn({
+            let input = input.clone();
+            move || {
+                for block in input.blocks(block_size) {
+                    if blocks.send(block).is_err() {
+                        break;
+                    }
+                }
             }
-            let (path, errors) = input.into_parts();
-            anyhow::Ok((sharded, path, errors))
         })
-        .context("failed to start the parser thread")?
+        .context("failed to start the block producer")?;
+
+    let mut errors = Vec::new();
+    // Block line numbers start at 1; this turns them into file line numbers.
+    let mut lines_before = input.first_line() - 1;
+    for parsed in parsed_blocks {
+        let parsed = parsed.context("failed to read the input file")?;
+        for mut raw in parsed.rows {
+            raw.line += lines_before;
+            sharded.apply(ShardMessage::Raw(raw))?;
+        }
+        errors.extend(parsed.errors.into_iter().map(|mut error| {
+            if let Some(position) = &mut error.position {
+                position.set_line(position.line() + lines_before);
+            }
+            error
+        }));
+        lines_before += parsed.lines;
+    }
+    producer
         .join()
-        .map_err(|_| anyhow::anyhow!("parser thread panicked"))??;
+        .map_err(|_| anyhow::anyhow!("block producer panicked"))?;
 
     let finished = runtime
         .block_on(sharded.finish())
@@ -74,7 +108,7 @@ fn run() -> anyhow::Result<()> {
 
     errors.extend(finished.errors.into_iter().map(RowError::from));
     let skipped = errors.len();
-    report_all(&path, errors);
+    report_all(input.path(), errors);
     if skipped > 0 {
         eprintln!("warning: skipped {skipped} invalid input row(s)");
     }
@@ -82,19 +116,37 @@ fn run() -> anyhow::Result<()> {
     write_output(&finished.engines)
 }
 
-fn quantity_of_shards() -> anyhow::Result<usize> {
-    match std::env::var(SHARDS_ENV) {
+/// A positive integer from the environment, or `None` if it is not set.
+fn positive_env(name: &str) -> anyhow::Result<Option<usize>> {
+    match std::env::var(name) {
         Ok(value) => match value.parse::<usize>() {
-            Ok(shards) if shards > 0 => Ok(shards),
-            _ => bail!("{SHARDS_ENV} must be a positive integer, got {value:?}"),
+            Ok(n) if n > 0 => Ok(Some(n)),
+            _ => bail!("{name} must be a positive integer, got {value:?}"),
         },
-        Err(_) => {
-            // By default leave one thread to the CSV Parser
-            let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
-            let shards = cores.checked_sub(1).unwrap_or(1).max(1);
-            Ok(shards)
-        }
+        Err(_) => Ok(None),
     }
+}
+
+fn cores() -> usize {
+    std::thread::available_parallelism().map_or(1, |n| n.get())
+}
+
+/// By default half the cores go to shards and half to parsers.
+fn half_the_cores() -> usize {
+    (cores() / 2).max(1)
+}
+
+fn quantity_of_shards() -> anyhow::Result<usize> {
+    Ok(positive_env(SHARDS_ENV)?.unwrap_or_else(half_the_cores))
+}
+
+fn quantity_of_parsers() -> anyhow::Result<usize> {
+    Ok(positive_env(PARSERS_ENV)?.unwrap_or_else(half_the_cores))
+}
+
+/// Bytes per parsed block; small values are useful to test block splitting.
+fn block_size() -> anyhow::Result<u64> {
+    Ok(positive_env(BLOCK_SIZE_ENV)?.unwrap_or(1 << 20) as u64)
 }
 
 fn write_output(engines: &[PaymentsEngine]) -> anyhow::Result<()> {

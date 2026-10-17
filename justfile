@@ -63,10 +63,10 @@ bench-cli rows="10000000":
     exe=target/release/payengine
     export RUST_LOG=error
     hyperfine --warmup 1 \
-        -n "1 shard"  "PAYENGINE_SHARDS=1 $exe $input" \
-        -n "4 shards" "PAYENGINE_SHARDS=4 $exe $input" \
-        -n "8 shards" "PAYENGINE_SHARDS=8 $exe $input" \
-        -n "default"  "env -u PAYENGINE_SHARDS $exe $input"
+        -n "1 shard, 1 parser"   "PAYENGINE_SHARDS=1 PAYENGINE_PARSERS=1 $exe $input" \
+        -n "4 shards, 4 parsers" "PAYENGINE_SHARDS=4 PAYENGINE_PARSERS=4 $exe $input" \
+        -n "8 shards, 8 parsers" "PAYENGINE_SHARDS=8 PAYENGINE_PARSERS=8 $exe $input" \
+        -n "default"             "env -u PAYENGINE_SHARDS -u PAYENGINE_PARSERS $exe $input"
 
 # Profile the CLI with samply on the same generated input as bench-cli, and
 # print the command that opens the saved profile.
