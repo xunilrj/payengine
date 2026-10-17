@@ -1,19 +1,38 @@
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use csv::{ByteRecord, Position};
-use rust_decimal::Decimal;
+use csv::Position;
+use payengine::raw::RawTransactionError;
 use std::fs::File;
 use std::ops::Range;
 
-const TYPE_NAMES: [&str; 5] = ["deposit", "withdrawal", "dispute", "resolve", "chargeback"];
+pub struct RowError {
+    pub position: Option<Position>,
+    pub field: Option<usize>,
+    pub message: String,
+}
 
-/// Renders malformed-CSV diagnostics with [`ariadne`], pointing at the exact
-/// offending field of the real file line. The input file is never slurped: only
-/// the single offending line is read back on error (lazily, via a second file
-/// handle opened on first use).
+impl From<RawTransactionError> for RowError {
+    fn from(error: RawTransactionError) -> Self {
+        let mut position = Position::new();
+        position.set_line(error.line).set_byte(error.byte);
+        RowError {
+            position: Some(position),
+            field: Some(error.field),
+            message: error.message,
+        }
+    }
+}
+
+pub fn report_all(path: &str, mut errors: Vec<RowError>) {
+    errors.sort_by_key(|error| error.position.as_ref().map(Position::byte));
+    let mut reporter = CsvErrors::new(path);
+    for error in errors {
+        reporter.report(error.position.as_ref(), error.field, error.message);
+    }
+}
+
 pub struct CsvErrors {
     path: String,
     seek_file: Option<File>,
-    skipped: usize,
 }
 
 impl CsvErrors {
@@ -21,19 +40,10 @@ impl CsvErrors {
         CsvErrors {
             path: path.to_string(),
             seek_file: None,
-            skipped: 0,
         }
     }
 
-    pub fn skipped(&self) -> usize {
-        self.skipped
-    }
-
-    /// Report and skip one bad record. `field` is the 0-based culprit column
-    /// index when known, used to underline the exact token; otherwise the whole
-    /// record is underlined.
     pub fn report(&mut self, pos: Option<&Position>, field: Option<usize>, msg: String) {
-        self.skipped += 1;
         let (text, pad, mut span) = match pos {
             Some(p) => {
                 if self.seek_file.is_none() {
@@ -84,36 +94,6 @@ impl CsvErrors {
         }
         builder.finish().eprint((path, &src)).ok();
     }
-}
-
-/// Index of the first field of `record` that would fail to deserialize, i.e.
-/// where serde stopped. Needed because serde's `invalid_value`/`unknown_variant`
-/// errors report `field: None`, so the csv error's own field index is missing
-/// for the type and amount cases.
-pub fn culprit_field(record: &ByteRecord) -> Option<usize> {
-    let field = |i| record.get(i).and_then(|b| std::str::from_utf8(b).ok());
-
-    let f0 = field(0)?;
-    if !TYPE_NAMES.contains(&f0) {
-        return Some(0);
-    }
-    if field(1).map(|s| s.parse::<u16>().is_err()).unwrap_or(true) {
-        return Some(1);
-    }
-    if field(2).map(|s| s.parse::<u32>().is_err()).unwrap_or(true) {
-        return Some(2);
-    }
-    if let Some(f3) = field(3) {
-        if !f3.is_empty()
-            && f3
-                .parse::<Decimal>()
-                .or_else(|_| Decimal::from_scientific(f3))
-                .is_err()
-        {
-            return Some(3);
-        }
-    }
-    None
 }
 
 fn read_line_at(file: &mut File, byte_start: u64) -> Option<String> {

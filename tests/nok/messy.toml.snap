@@ -11,16 +11,17 @@ client,available,held,total,locked
 3,0.75,0,0.75,false
 --- stderr ---
 TRACE payengine::input: input file opened path="target/e2e/tests/nok/messy.csv"
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 2, tx: 2, amount: Some(5.5000) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 3, tx: 3, amount: Some(1) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 4, amount: Some(0.5) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 5, amount: Some(2) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 6, amount: Some(1.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
-TRACE payengine::input: record parsed record=InputCsv { ty: Resolve, client: 1, tx: 1, amount: None }
-TRACE payengine::input: record parsed record=InputCsv { ty: Dispute, client: 2, tx: 2, amount: Some(999) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Chargeback, client: 2, tx: 2, amount: None }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 1, amount: 10.0 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 2, tx: 2, amount: 5.5000 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 3, tx: 3, amount: 1 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 4, amount: 0.5 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 5, amount: 2 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 6, amount: 1.0 }
+TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 1, tx: 1 }
+TRACE payengine::sharded: transaction parsed transaction=Resolve { client: 1, tx: 1 }
+TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 2, tx: 2 }
+TRACE payengine::sharded: transaction parsed transaction=Chargeback { client: 2, tx: 2 }
+TRACE payengine::sharded: transaction parsed transaction=Withdrawal { client: 3, tx: 11, amount: 0.25 }
 Error: expected at most 4 fields, found 5
     ╭─[ target/e2e/tests/nok/messy.csv:13:1 ]
     │
@@ -28,7 +29,6 @@ Error: expected at most 4 fields, found 5
     │ ────────────┬────────────  
     │             ╰────────────── this record
 ────╯
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 8, amount: None }
 Error: deposit requires an `amount`
     ╭─[ target/e2e/tests/nok/messy.csv:14:1 ]
     │
@@ -36,14 +36,14 @@ Error: deposit requires an `amount`
     │ ─────┬─────  
     │      ╰─────── amount
 ────╯
-Error: expected field, but got end of row
+Error: missing `tx`
     ╭─[ target/e2e/tests/nok/messy.csv:15:1 ]
     │
  15 │ dispute,1
     │ ────┬────  
     │     ╰────── tx
 ────╯
-Error: unknown variant `Deposit`, expected one of `deposit`, `withdrawal`, `dispute`, `resolve`, `chargeback`
+Error: unknown transaction type `Deposit`, expected deposit, withdrawal, dispute, resolve or chargeback
     ╭─[ target/e2e/tests/nok/messy.csv:16:1 ]
     │
  16 │ Deposit,1,9,1.0
@@ -57,12 +57,11 @@ Error: expected at most 4 fields, found 5
     │ ────────┬───────  
     │         ╰───────── this record
 ────╯
-Error: unknown variant ``, expected one of `deposit`, `withdrawal`, `dispute`, `resolve`, `chargeback`
+Error: unknown transaction type ``, expected deposit, withdrawal, dispute, resolve or chargeback
     ╭─[ target/e2e/tests/nok/messy.csv:18:4 ]
     │
  18 │ 
     │    │ 
     │    ╰─ type
 ────╯
-TRACE payengine::input: record parsed record=InputCsv { ty: Withdrawal, client: 3, tx: 11, amount: Some(0.25) }
 warning: skipped 6 invalid input row(s)

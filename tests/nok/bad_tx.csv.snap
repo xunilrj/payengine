@@ -4,7 +4,7 @@ source: tests/e2e.rs
 exit status: 0
 
 TRACE payengine::input: input file opened path="tests/nok/bad_tx.csv"
-Error: field 2: invalid digit found in string
+Error: `tx` must be an integer from 0 to 4294967295, got `x`
    ╭─[ tests/nok/bad_tx.csv:2:13 ]
    │
  2 │ deposit, 1, x, 1.0

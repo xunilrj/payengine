@@ -2,7 +2,7 @@ mod workload;
 
 use micromeasure::{BenchContext, BenchmarkRuntimeOptions, Throughput, benchmark_main, black_box};
 use payengine::engine::PaymentsEngine;
-use payengine::sharded::ShardedPaymentEngine;
+use payengine::sharded::{ShardMessage, ShardedPaymentEngine};
 use std::time::Duration;
 use workload::Workload;
 
@@ -62,13 +62,16 @@ fn process_sharded<const SHARDS: usize, const N: usize>(
     let mut sharded = ShardedPaymentEngine::new(SHARDS, ctx.runtime.handle());
 
     for transaction in Workload::new(SEED).take(chunk_size) {
-        sharded.apply(transaction).expect("shard stopped");
+        sharded
+            .apply(ShardMessage::Transaction(transaction))
+            .expect("shard stopped");
     }
 
     ctx.engines = ctx
         .runtime
         .block_on(sharded.finish())
-        .expect("shard panicked");
+        .expect("shard panicked")
+        .engines;
     black_box(&ctx.engines);
 }
 

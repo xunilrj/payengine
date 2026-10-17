@@ -367,3 +367,32 @@ Benchmark 4: default
   Time (mean ± σ):      1.508 s ±  0.021 s    [User: 1.950 s, System: 0.224 s]
   Range (min … max):    1.489 s …  1.552 s    10 runs
 ```
+
+Second culprit seems to be `serde`. I am not the biggest fan of `serde` to be honest.
+It is quite impressive, of course, but normally is never the most optimizer solution you can have.
+
+If we bypass `serde` enterily, we can benefit even more by finding the client as soon as possible and leaving the shard to do the "heavy parsing".
+
+This brings us to:
+
+```
+Benchmark 1: 1 shard
+  Time (mean ± σ):     822.3 ms ±  24.7 ms    [User: 1257.5 ms, System: 112.1 ms]
+  Range (min … max):   790.2 ms … 878.1 ms    10 runs
+
+Benchmark 2: 4 shards
+  Time (mean ± σ):     612.0 ms ±  14.5 ms    [User: 1445.0 ms, System: 169.3 ms]
+  Range (min … max):   597.6 ms … 632.8 ms    10 runs
+
+Benchmark 3: 8 shards
+  Time (mean ± σ):     591.7 ms ±  13.0 ms    [User: 1393.2 ms, System: 199.0 ms]
+  Range (min … max):   580.8 ms … 624.6 ms    10 runs
+
+  Warning: Statistical outliers were detected. Consider re-running this benchmark on a quiet system without any interferences from other programs. It might help to use the '--warmup' or '--prepare' options.
+
+Benchmark 4: default
+  Time (mean ± σ):     585.6 ms ±   9.0 ms    [User: 1386.1 ms, System: 197.9 ms]
+  Range (min … max):   577.6 ms … 606.7 ms    10 runs
+```
+
+The good part of these changes is that, they are where AI shines. We can prototype these changes quite fast and see results.

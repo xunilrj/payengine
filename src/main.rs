@@ -2,12 +2,13 @@ mod error;
 mod input;
 mod log;
 
+use crate::error::{RowError, report_all};
 use crate::input::Input;
 use crate::log::setup_log;
 use anyhow::{Context, bail};
 use csv::WriterBuilder;
 use payengine::engine::PaymentsEngine;
-use payengine::sharded::ShardedPaymentEngine;
+use payengine::sharded::{ShardMessage, ShardedPaymentEngine};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -40,8 +41,7 @@ fn run() -> anyhow::Result<()> {
     let shards = quantity_of_shards()?;
 
     // One worker per shard, named so profilers and debuggers can tell them
-    // apart from the parser. Tasks can move between workers, so the number
-    // identifies the worker, not a shard.
+    // apart from the parser.
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(shards)
         .thread_name_fn(|| {
@@ -52,30 +52,34 @@ fn run() -> anyhow::Result<()> {
         .context("failed to start the runtime")?;
     let mut sharded = ShardedPaymentEngine::new(shards, runtime.handle());
 
-    // The parser gets its own named thread: CSV reading is blocking I/O, and
-    // `apply` blocks while a shard is busy.
-    let (sharded, skipped) = std::thread::Builder::new()
+    // There is no way to name a blocking thread in tokio, so we create one
+    // here manually.
+    let (sharded, path, mut errors) = std::thread::Builder::new()
         .name("csv-parser".to_string())
         .spawn(move || {
             let mut input = Input::from_args()?;
-            for transaction in &mut input {
-                sharded.apply(transaction)?;
+            for record in &mut input {
+                sharded.apply(ShardMessage::Raw(record))?;
             }
-            anyhow::Ok((sharded, input.skipped()))
+            let (path, errors) = input.into_parts();
+            anyhow::Ok((sharded, path, errors))
         })
         .context("failed to start the parser thread")?
         .join()
         .map_err(|_| anyhow::anyhow!("parser thread panicked"))??;
 
-    let engines = runtime
+    let finished = runtime
         .block_on(sharded.finish())
         .context("shard task panicked")?;
 
+    errors.extend(finished.errors.into_iter().map(RowError::from));
+    let skipped = errors.len();
+    report_all(&path, errors);
     if skipped > 0 {
         eprintln!("warning: skipped {skipped} invalid input row(s)");
     }
 
-    write_output(&engines)
+    write_output(&finished.engines)
 }
 
 fn quantity_of_shards() -> anyhow::Result<usize> {

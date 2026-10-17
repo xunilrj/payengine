@@ -4,7 +4,6 @@ source: tests/e2e.rs
 exit status: 0
 
 TRACE payengine::input: input file opened path="tests/nok/too_few_columns.csv"
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: None }
 Error: deposit requires an `amount`
    ╭─[ tests/nok/too_few_columns.csv:2:1 ]
    │

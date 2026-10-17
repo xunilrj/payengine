@@ -4,8 +4,7 @@ source: tests/e2e.rs
 exit status: 0
 
 TRACE payengine::input: input file opened path="tests/nok/missing_amount_withdrawal.csv"
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(5.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Withdrawal, client: 1, tx: 2, amount: None }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 1, amount: 5.0 }
 Error: withdrawal requires an `amount`
    ╭─[ tests/nok/missing_amount_withdrawal.csv:3:18 ]
    │

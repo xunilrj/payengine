@@ -1,81 +1,26 @@
-use csv::{ByteRecord, ErrorKind, ReaderBuilder, Terminator, Trim};
-use rust_decimal::Decimal;
-use serde::Deserialize;
+use csv::{ByteRecord, Position, ReaderBuilder, Terminator};
 use std::env::args;
 use tracing::trace;
 
-use crate::error::{CsvErrors, culprit_field};
+use crate::error::RowError;
 use anyhow::{Context, bail};
-use payengine::engine::Transaction;
+use payengine::raw::{RawAmount, RawTransaction, TransactionType};
 
-#[derive(Debug, Deserialize)]
-pub enum TransactionType {
-    #[serde(rename = "deposit")]
-    Deposit,
-    #[serde(rename = "withdrawal")]
-    Withdrawal,
-    #[serde(rename = "dispute")]
-    Dispute,
-    #[serde(rename = "resolve")]
-    Resolve,
-    #[serde(rename = "chargeback")]
-    Chargeback,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InputCsv {
-    #[serde(rename = "type")]
-    pub ty: TransactionType,
-    pub client: u16,
-    pub tx: u32,
-    pub amount: Option<Decimal>,
-}
-
-struct FieldError {
-    field: usize,
-    msg: String,
-}
-
-impl InputCsv {
-    fn into_transaction(self) -> Result<Transaction, FieldError> {
-        let (client, tx) = (self.client, self.tx);
-        Ok(match self.ty {
-            TransactionType::Deposit => Transaction::Deposit {
-                client,
-                tx,
-                amount: required_amount(self.amount, "deposit")?,
-            },
-            TransactionType::Withdrawal => Transaction::Withdrawal {
-                client,
-                tx,
-                amount: required_amount(self.amount, "withdrawal")?,
-            },
-            TransactionType::Dispute => Transaction::Dispute { client, tx },
-            TransactionType::Resolve => Transaction::Resolve { client, tx },
-            TransactionType::Chargeback => Transaction::Chargeback { client, tx },
-        })
-    }
-}
-
-fn required_amount(amount: Option<Decimal>, name: &str) -> Result<Decimal, FieldError> {
-    match amount {
-        None => Err(FieldError {
-            field: 3,
-            msg: format!("{name} requires an `amount`"),
-        }),
-        Some(a) if a.is_sign_negative() => Err(FieldError {
-            field: 3,
-            msg: format!("{name} `amount` must not be negative"),
-        }),
-        Some(a) => Ok(a),
-    }
+/// Column positions, found once from the header row.
+struct ColPositions {
+    ty: usize,
+    client: usize,
+    tx: usize,
+    amount: Option<usize>,
 }
 
 pub struct Input {
+    path: String,
     rdr: csv::Reader<std::fs::File>,
-    headers: ByteRecord,
+    header_len: usize,
+    columns: ColPositions,
     record: ByteRecord,
-    errs: CsvErrors,
+    errors: Vec<RowError>,
 }
 
 impl Input {
@@ -96,71 +41,151 @@ impl Input {
         let mut reader = ReaderBuilder::new()
             .delimiter(b',')
             .has_headers(true)
-            .trim(Trim::All)
             .terminator(Terminator::CRLF)
             .flexible(true)
             .from_path(&path)
             .with_context(|| format!("failed to open input file {path:?}"))?;
         let headers = reader
             .byte_headers()
-            .context("failed to read CSV header row")?
-            .clone();
+            .context("failed to read CSV header row")?;
+        let column = |name: &str| {
+            headers
+                .iter()
+                .position(|h| h.trim_ascii() == name.as_bytes())
+        };
+        let required =
+            |name: &str| column(name).with_context(|| format!("header row has no `{name}` column"));
+
+        // An empty file has no header row, and no rows to read either.
+        let columns = if headers.is_empty() {
+            ColPositions {
+                ty: 0,
+                client: 1,
+                tx: 2,
+                amount: Some(3),
+            }
+        } else {
+            ColPositions {
+                ty: required("type")?,
+                client: required("client")?,
+                tx: required("tx")?,
+                amount: column("amount"),
+            }
+        };
+        let header_len = headers.len();
+
         Ok(Input {
+            path,
             rdr: reader,
-            headers,
+            header_len,
+            columns,
             record: ByteRecord::new(),
-            errs: CsvErrors::new(&path),
+            errors: Vec::new(),
         })
     }
 
-    pub fn skipped(&self) -> usize {
-        self.errs.skipped()
+    /// The input path and every row rejected by the parser thread.
+    pub fn into_parts(self) -> (String, Vec<RowError>) {
+        (self.path, self.errors)
+    }
+
+    fn parse_record(&self, position: Position) -> Result<RawTransaction, RowError> {
+        let error = |field: usize, message: String| RowError {
+            position: Some(position.clone()),
+            field: Some(field),
+            message,
+        };
+        let field = |column: usize, name: &str| match self.record.get(column) {
+            Some(bytes) => Ok(bytes.trim_ascii()),
+            None => Err(error(column, format!("missing `{name}`"))),
+        };
+        let integer = |column: usize, name: &str, max: u32| {
+            let bytes = field(column, name)?;
+            if bytes.is_empty() {
+                return Err(error(column, format!("missing `{name}`")));
+            }
+            std::str::from_utf8(bytes)
+                .ok()
+                .and_then(|text| text.parse::<u32>().ok())
+                .filter(|value| *value <= max)
+                .ok_or_else(|| {
+                    let text = String::from_utf8_lossy(bytes);
+                    error(
+                        column,
+                        format!("`{name}` must be an integer from 0 to {max}, got `{text}`"),
+                    )
+                })
+        };
+
+        let ty_bytes = field(self.columns.ty, "type")?;
+        let ty = TransactionType::parse(ty_bytes).ok_or_else(|| {
+            let text = String::from_utf8_lossy(ty_bytes);
+            error(
+                self.columns.ty,
+                format!(
+                    "unknown transaction type `{text}`, expected deposit, withdrawal, dispute, resolve or chargeback"
+                ),
+            )
+        })?;
+        let client = integer(self.columns.client, "client", u32::from(u16::MAX))? as u16;
+        let tx = integer(self.columns.tx, "tx", u32::MAX)?;
+        let amount = match self.columns.amount.and_then(|c| self.record.get(c)) {
+            Some(bytes) => RawAmount::new(bytes.trim_ascii()),
+            None => RawAmount::Missing,
+        };
+
+        Ok(RawTransaction {
+            ty,
+            client,
+            tx,
+            amount,
+            line: position.line(),
+            byte: position.byte(),
+            amount_column: self.columns.amount.unwrap_or(3),
+        })
     }
 }
 
 impl Iterator for Input {
-    type Item = Transaction;
+    type Item = RawTransaction;
 
-    fn next(&mut self) -> Option<Transaction> {
+    fn next(&mut self) -> Option<RawTransaction> {
         loop {
-            let record = match self.rdr.read_byte_record(&mut self.record) {
-                Ok(true) => &self.record,
+            match self.rdr.read_byte_record(&mut self.record) {
+                Ok(true) => {}
                 Ok(false) => return None,
                 Err(e) => {
-                    self.errs.report(e.position(), None, e.to_string());
+                    self.errors.push(RowError {
+                        position: e.position().cloned(),
+                        field: None,
+                        message: e.to_string(),
+                    });
                     continue;
                 }
-            };
-            let pos = record.position().cloned();
+            }
+            let position = self
+                .record
+                .position()
+                .cloned()
+                .unwrap_or_else(Position::new);
 
             // Deal with more columns than expected
-            if record.len() > self.headers.len() {
-                let msg = format!(
-                    "expected at most {} fields, found {}",
-                    self.headers.len(),
-                    record.len()
-                );
-                self.errs.report(pos.as_ref(), None, msg);
+            if self.record.len() > self.header_len {
+                self.errors.push(RowError {
+                    position: Some(position),
+                    field: None,
+                    message: format!(
+                        "expected at most {} fields, found {}",
+                        self.header_len,
+                        self.record.len()
+                    ),
+                });
                 continue;
             }
 
-            let rec = match record.deserialize::<InputCsv>(Some(&self.headers)) {
-                Ok(r) => r,
-                Err(e) => {
-                    let msg = match e.kind() {
-                        ErrorKind::Deserialize { err, .. } => err.to_string(),
-                        _ => e.to_string(),
-                    };
-                    let field = culprit_field(record);
-                    self.errs.report(pos.as_ref(), field, msg);
-                    continue;
-                }
-            };
-            trace!(record = ?rec, "record parsed");
-
-            match rec.into_transaction() {
-                Ok(transaction) => return Some(transaction),
-                Err(err) => self.errs.report(pos.as_ref(), Some(err.field), err.msg),
+            match self.parse_record(position) {
+                Ok(record) => return Some(record),
+                Err(error) => self.errors.push(error),
             }
         }
     }

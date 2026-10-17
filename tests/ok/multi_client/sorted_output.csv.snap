@@ -4,14 +4,14 @@ source: tests/e2e.rs
 exit status: 0
 
 TRACE payengine::input: input file opened path="tests/ok/multi_client/sorted_output.csv"
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 2, tx: 1, amount: Some(10.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 2, amount: Some(10.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Withdrawal, client: 3, tx: 3, amount: Some(25.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 3, tx: 4, amount: Some(100.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Dispute, client: 1, tx: 2, amount: None }
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 2, tx: 5, amount: Some(5.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Chargeback, client: 1, tx: 2, amount: None }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 2, tx: 1, amount: 10.0 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 2, amount: 10.0 }
+TRACE payengine::sharded: transaction parsed transaction=Withdrawal { client: 3, tx: 3, amount: 25.0 }
  WARN payengine::engine: withdrawal ignored: insufficient available funds client=3 tx=3
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 3, tx: 4, amount: 100.0 }
+TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 1, tx: 2 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 2, tx: 5, amount: 5.0 }
+TRACE payengine::sharded: transaction parsed transaction=Chargeback { client: 1, tx: 2 }
 client,available,held,total,locked
 1,0,0,0,true
 2,15,0,15,false

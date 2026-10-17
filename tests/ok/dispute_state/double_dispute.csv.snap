@@ -4,9 +4,9 @@ source: tests/e2e.rs
 exit status: 0
 
 TRACE payengine::input: input file opened path="tests/ok/dispute_state/double_dispute.csv"
-TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(2.0) }
-TRACE payengine::input: record parsed record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
-TRACE payengine::input: record parsed record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 1, amount: 2.0 }
+TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 1, tx: 1 }
+TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 1, tx: 1 }
  WARN payengine::engine: dispute ignored: tx is already in dispute client=1 tx=1
 client,available,held,total,locked
 1,0,2,2,false

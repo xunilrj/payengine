@@ -4,7 +4,7 @@ source: tests/e2e.rs
 exit status: 0
 
 TRACE payengine::input: input file opened path="tests/nok/out_of_range_client.csv"
-Error: field 1: number too large to fit in target type
+Error: `client` must be an integer from 0 to 65535, got `70000`
    ╭─[ tests/nok/out_of_range_client.csv:2:10 ]
    │
  2 │ deposit, 70000, 1, 1.0
