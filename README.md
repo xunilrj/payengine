@@ -71,8 +71,6 @@ I will try to create here the most realistic devlog of the steps I took whilst d
 
 I will expedite a minimal example working. That means that code does not need to be good. I just want something working e2e. In this case will be a simple CLI parsing a one-line CSV and printing the output.
 
-I will use precise versioning in `Cargo.toml` as a security measure against supply chain attacks.
-
 ## Test framework
 
 Now that we can process the simple CSV file, I want to create the test framework. Although I do see the value of "unit tests", in this case, I think e2e snapshot tests will be a better fit. Why? Because they will be visually simpler to understand what they are testing, and their final result.
