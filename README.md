@@ -195,4 +195,57 @@ I will analyze performance now. This is the result of the benchmark before any c
 │10M                      │          4.94 Mtx/s│        202.14│      203.14│               -│
 │100M                     │          4.11 Mtx/s│        238.04│      252.17│               -│
 └─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
+
+size       peak RSS
+10k           26 MB
+100k          26 MB
+1M            58 MB
+10M          510 MB
+100M        4803 MB
 ```
+
+Changing the transaction map from `BTree` to `HashMap` improved performance.
+
+```
+┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
+│        Benchmark        │     Throughput     │ Median ns/op │ P95 ns/op  │     Change     │
+╞═════════════════════════╤════════════════════╤══════════════╤════════════╤════════════════╡
+│10k                      │         10.93 Mtx/s│         90.82│      100.00│          +42.5%│
+│100k                     │          8.28 Mtx/s│        120.14│      126.11│          +36.6%│
+│1M                       │          7.28 Mtx/s│        136.79│      139.69│          +35.6%│
+│10M                      │          7.16 Mtx/s│        139.07│      141.07│          +45.0%│
+│100M                     │          5.49 Mtx/s│        182.68│      185.37│          +33.4%│
+└─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
+
+size       peak RSS
+10k           26 MB
+100k          26 MB
+1M           108 MB
+10M          808 MB
+100M        4552 MB
+```
+
+`HashMap` endup being faster AND cheaper in big datasets. `Dashmap` is very similar with `HashMap`.
+
+```
+┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
+│        Benchmark        │     Throughput     │ Median ns/op │ P95 ns/op  │     Change     │
+╞═════════════════════════╤════════════════════╤══════════════╤════════════╤════════════════╡
+│10k                      │         10.70 Mtx/s│         92.64│      102.07│           -2.0%│
+│100k                     │          7.94 Mtx/s│        124.24│      132.88│           -4.1%│
+│1M                       │          6.75 Mtx/s│        147.53│      152.20│           -7.3%│
+│10M                      │          6.03 Mtx/s│        165.71│      166.69│          -15.8%│
+│100M                     │          4.71 Mtx/s│        212.40│      216.31│          -14.3%│
+└─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
+
+size       peak RSS
+10k           26 MB
+100k          26 MB
+1M            90 MB
+10M          728 MB
+100M        4579 MB
+```
+
+Interesting to see but `Dashmap` give us nothing here as the code to be multi-thread safe is much more complex than that. And we have a lot of check-then-act races.
+
+I am going to stick with `HashMap` for now.

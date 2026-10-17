@@ -1,7 +1,7 @@
 use tracing::warn;
 
 use rust_decimal::Decimal;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineError {
@@ -46,7 +46,7 @@ pub struct Account {
 #[derive(Default)]
 pub struct PaymentsEngine {
     accounts: BTreeMap<u16, Account>,
-    txs_amounts: BTreeMap<u32, TxState>,
+    txs_amounts: HashMap<u32, TxState>,
 }
 
 impl PaymentsEngine {
