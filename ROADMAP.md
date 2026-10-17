@@ -53,12 +53,16 @@ mis-scoring against, the spec.
   code policy (currently: diagnostics to stderr, exit 0 even with bad rows).
   Done: README rewritten — bad rows are reported to stderr and skipped, processing
   continues, exit 0; stdout stays clean for the output CSV.
-- [ ] **Consolidated assumptions section missing.** The spec asks to "document them",
+- [x] **Consolidated assumptions section missing.** The spec asks to "document them",
   and the scoring rubric wants the correctness story ("how do you know this is
   correct?") in the README. Assumptions are currently scattered through the devlog.
   Add a short section at the top of the README: list of deliberate interpretations,
   the testing strategy (unit tests in `src/engine.rs` + snapshot e2e suite), and why
   `rust_decimal` instead of floats.
+  Done: README "# TLDR" now lists all deliberate interpretations (frozen accounts,
+  chargeback state, output precision, withdrawal disputes, redundant client id,
+  invalid rows, zero amounts, non-fatal business outcomes) plus a one-paragraph
+  correctness story (unit tests + snapshot e2e + `rust_decimal`).
 
 ## Low priority — documented deviations to keep or revisit
 

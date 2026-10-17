@@ -5,6 +5,32 @@ Deliberate spec interpretations (details in the devlog below):
 - Locked accounts ignore all further transactions. Spec is not clear on what to do with locked accounts; I chose the "fully frozen" bank reading;
 - Spec says `chargeback` is the "final state of the dispute". It is not clear this means nothing else can happen. I return the transaction to the `Normal` state, but with the client locked, nothign can happen anyway;
 - Amounts are output with natural precision (`2`, `1.5`), and are not forced to 4 decimal places. Spec contradicts itself; round values are explicitly accepted either way.
+- The spec only describes disputes on deposits. A disputed withdrawal only flags the transaction (nothing moves to `held`), and its chargeback refunds the amount to `available` and locks the client;
+- The redundant client id in dispute/resolve/chargeback is used to verify the transaction owner. A mismatch is ignored with a warning;
+- Invalid rows (bad type, negative amount, etc.) are reported, skipped, and the file continues to be processed; the application exits `0` and prints a summary of skipped rows to stderr;
+- Amounts of zero are valid transactions: recorded like any other, and can be disputed/charged back (a zero chargeback still locks the client);
+- Insufficient-funds withdrawals and duplicated tx ids are ignored as business outcomes, never fatal. Spec: "you can ignore it";
+
+# Testing
+
+Everything is run with a single command:
+
+```sh
+cargo test
+```
+
+There are two layers:
+
+- Unit tests: next to the code they test.
+- E2E snapshot tests: under `tests` folder. They compile the release binary and run it against every `*.csv` and `*.toml` file under the same folder. Each run generate a snapshot file and compare them with `insta`.
+
+The fixtures are organized by what they test:
+
+- `tests/ok/` — valid inputs;
+- `tests/nok/` — invalid inputs;
+- `tests/cli/` — CLI misuse;
+
+When a change is intentional, new snapshots can be accepted with `just accept-tests`.
 
 # Plan
 
