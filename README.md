@@ -180,3 +180,19 @@ Only now I realized that `rust_decimal` without `serde-str` feature was parsing 
 writing the output to simplify the final CSV.
 
 Again for money and crypto I still think makes more sense to use an "infinite precision" decimal lib. But I think we are good for this demo.
+
+## Performance
+
+I will analyze performance now. This is the result of the benchmark before any changes.
+
+```
+┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
+│        Benchmark        │     Throughput     │ Median ns/op │ P95 ns/op  │     Change     │
+╞═════════════════════════╤════════════════════╤══════════════╤════════════╤════════════════╡
+│10k                      │          7.67 Mtx/s│        128.99│      141.00│               -│
+│100k                     │          6.06 Mtx/s│        163.78│      170.96│               -│
+│1M                       │          5.37 Mtx/s│        185.40│      188.86│               -│
+│10M                      │          4.94 Mtx/s│        202.14│      203.14│               -│
+│100M                     │          4.11 Mtx/s│        238.04│      252.17│               -│
+└─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
+```

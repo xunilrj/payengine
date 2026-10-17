@@ -17,10 +17,15 @@ libtest-mimic = "0.8.2"
 glob = "0.3.4"
 insta = "1.49.0"
 vte = "0.15.0"
-duct = { version = "1.1", features = ["timeout"] }
+duct = { version = "1.1.2", features = ["timeout"] }
 toml = "1.1.8"
+micromeasure = "0.16.0"
 
 [[test]]
 name = "e2e_snapshot"
 path = "tests/e2e.rs"
+harness = false
+
+[[bench]]
+name = "engine"
 harness = false

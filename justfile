@@ -22,3 +22,6 @@ search-history term:
     echo "== working tree =="
     grep -ri "$q" . --exclude-dir=.git || true
     echo "== done =="
+
+bench filter="":
+    cargo bench --bench engine -- {{filter}}

@@ -1,13 +1,12 @@
-mod engine;
 mod error;
 mod input;
 mod log;
 
-use crate::engine::PaymentsEngine;
 use crate::input::{Input, TransactionType};
 use crate::log::setup_log;
 use anyhow::Context;
 use csv::Writer;
+use payengine::engine::PaymentsEngine;
 use rust_decimal::Decimal;
 use serde::Serialize;
 
