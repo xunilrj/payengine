@@ -12,3 +12,4 @@ Error: field 2: invalid digit found in string
    │             ╰── tx
 ───╯
 warning: skipped 1 invalid input row(s)
+client,available,held,total,locked

@@ -12,3 +12,4 @@ Error: field 1: number too large to fit in target type
    │            ╰──── client
 ───╯
 warning: skipped 1 invalid input row(s)
+client,available,held,total,locked

@@ -12,3 +12,4 @@ Error: unknown variant `dep0sit`, expected one of `deposit`, `withdrawal`, `disp
    │    ╰───── type
 ───╯
 warning: skipped 1 invalid input row(s)
+client,available,held,total,locked

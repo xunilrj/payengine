@@ -5,7 +5,7 @@ mod log;
 use crate::input::Input;
 use crate::log::setup_log;
 use anyhow::{Context, bail};
-use csv::Writer;
+use csv::WriterBuilder;
 use payengine::engine::PaymentsEngine;
 use payengine::sharded::ShardedPaymentEngine;
 use rust_decimal::Decimal;
@@ -91,7 +91,12 @@ fn write_output(engines: &[PaymentsEngine]) -> anyhow::Result<()> {
         rows.sort_unstable_by_key(|row| row.client);
     }
 
-    let mut writer = Writer::from_writer(std::io::stdout());
+    let mut writer = WriterBuilder::new()
+        .has_headers(false)
+        .from_writer(std::io::stdout());
+    writer
+        .write_record(["client", "available", "held", "total", "locked"])
+        .context("failed to write output header")?;
     for row in rows {
         writer
             .serialize(row)

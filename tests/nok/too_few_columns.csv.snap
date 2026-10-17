@@ -13,3 +13,4 @@ Error: deposit requires an `amount`
    │       ╰──────── amount
 ───╯
 warning: skipped 1 invalid input row(s)
+client,available,held,total,locked
