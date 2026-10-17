@@ -10,7 +10,7 @@ use payengine::engine::PaymentsEngine;
 use payengine::sharded::ShardedPaymentEngine;
 use rust_decimal::Decimal;
 use serde::Serialize;
-use tokio::runtime::Handle;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const SHARDS_ENV: &str = "PAYENGINE_SHARDS";
 const SORT_OUTPUT_ENV: &str = "PAYENGINE_SORT_OUTPUT";
@@ -24,11 +24,10 @@ struct OutputCsv {
     locked: bool,
 }
 
-#[tokio::main]
-async fn main() -> std::process::ExitCode {
+fn main() -> std::process::ExitCode {
     setup_log();
 
-    match run().await {
+    match run() {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{e:#}");
@@ -37,21 +36,40 @@ async fn main() -> std::process::ExitCode {
     }
 }
 
-async fn run() -> anyhow::Result<()> {
+fn run() -> anyhow::Result<()> {
     let shards = quantity_of_shards()?;
-    let mut sharded = ShardedPaymentEngine::new(shards, &Handle::current());
 
-    let (sharded, skipped) = tokio::task::spawn_blocking(move || {
-        let mut input = Input::from_args()?;
-        for transaction in &mut input {
-            sharded.apply(transaction)?;
-        }
-        anyhow::Ok((sharded, input.skipped()))
-    })
-    .await
-    .context("parser task panicked")??;
+    // One worker per shard, named so profilers and debuggers can tell them
+    // apart from the parser. Tasks can move between workers, so the number
+    // identifies the worker, not a shard.
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(shards)
+        .thread_name_fn(|| {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            format!("shard-worker-{}", NEXT.fetch_add(1, Ordering::Relaxed))
+        })
+        .build()
+        .context("failed to start the runtime")?;
+    let mut sharded = ShardedPaymentEngine::new(shards, runtime.handle());
 
-    let engines = sharded.finish().await.context("shard task panicked")?;
+    // The parser gets its own named thread: CSV reading is blocking I/O, and
+    // `apply` blocks while a shard is busy.
+    let (sharded, skipped) = std::thread::Builder::new()
+        .name("csv-parser".to_string())
+        .spawn(move || {
+            let mut input = Input::from_args()?;
+            for transaction in &mut input {
+                sharded.apply(transaction)?;
+            }
+            anyhow::Ok((sharded, input.skipped()))
+        })
+        .context("failed to start the parser thread")?
+        .join()
+        .map_err(|_| anyhow::anyhow!("parser thread panicked"))??;
+
+    let engines = runtime
+        .block_on(sharded.finish())
+        .context("shard task panicked")?;
 
     if skipped > 0 {
         eprintln!("warning: skipped {skipped} invalid input row(s)");

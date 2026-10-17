@@ -47,3 +47,43 @@ bench-memory sizes="10k 100k 1M 10M 100M":
         printf '%-10s %9d MB\n' "$size" $(( rss * unit / 1024 / 1024 ))
     done
     rm -f "$log"
+
+# Usage: just bench-cli [rows]
+bench-cli rows="10000000":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v hyperfine >/dev/null || cargo install --locked hyperfine
+    seed=24301
+    input="target/bench/transactions_{{rows}}_seed${seed}.csv"
+    if [ ! -f "$input" ]; then
+        mkdir -p target/bench
+        cargo run --release --example generate_csv -- {{rows}} "$seed" "$input"
+    fi
+    cargo build --release
+    exe=target/release/payengine
+    export RUST_LOG=error
+    hyperfine --warmup 1 \
+        -n "1 shard"  "PAYENGINE_SHARDS=1 $exe $input" \
+        -n "4 shards" "PAYENGINE_SHARDS=4 $exe $input" \
+        -n "8 shards" "PAYENGINE_SHARDS=8 $exe $input" \
+        -n "default"  "env -u PAYENGINE_SHARDS $exe $input"
+
+# Profile the CLI with samply on the same generated input as bench-cli, and
+# print the command that opens the saved profile.
+# Installs samply if missing. Usage: just profile-cli [rows]
+[macos]
+profile-cli rows="10000000":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v samply >/dev/null || cargo install --locked samply
+    seed=24301
+    input="target/bench/transactions_{{rows}}_seed${seed}.csv"
+    if [ ! -f "$input" ]; then
+        mkdir -p target/bench
+        cargo run --release --example generate_csv -- {{rows}} "$seed" "$input"
+    fi
+    cargo build --profile profiling
+    profile="target/profiling/profile_{{rows}}.json.gz"
+    RUST_LOG=error samply record --save-only -o "$profile" \
+        target/profiling/payengine "$input" > /dev/null
+    echo "To see run: samply load $profile"

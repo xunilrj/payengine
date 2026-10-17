@@ -319,3 +319,29 @@ collision attacks.
 │shards-8                 │        121.13 Mtx/s│          8.09│        8.97│           -1.2%│
 └─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
 ```
+
+## New Bottleneck
+
+Benchmarking the CLI now we have the following results: 
+
+```
+Benchmark 1: 1 shard
+  Time (mean ± σ):      2.637 s ±  0.033 s    [User: 2.956 s, System: 0.182 s]
+  Range (min … max):    2.580 s …  2.697 s    10 runs
+
+Benchmark 2: 4 shards
+  Time (mean ± σ):      2.556 s ±  0.019 s    [User: 2.956 s, System: 0.195 s]
+  Range (min … max):    2.528 s …  2.594 s    10 runs
+
+Benchmark 3: 8 shards
+  Time (mean ± σ):      2.557 s ±  0.032 s    [User: 2.973 s, System: 0.217 s]
+  Range (min … max):    2.521 s …  2.616 s    10 runs
+
+Benchmark 4: default
+  Time (mean ± σ):      2.569 s ±  0.025 s    [User: 2.960 s, System: 0.224 s]
+  Range (min … max):    2.545 s …  2.629 s    10 runs
+```
+
+Which means the CSV parser is the bottleneck now. But to be sure I created a new "sampled profiler". I am running on macos so I am using "samply". Result is shown below. All the worst offenders boils down to the CSV parser.
+
+![](image.png)
