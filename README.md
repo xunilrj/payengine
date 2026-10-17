@@ -463,3 +463,29 @@ A line belongs to the block where it starts, so a block skips a partial first li
 Workers only do the cheap checks (type, client, tx) and keep the amount as raw text. The channel returns the parsed blocks in file order, and never lets more than two blocks per parser be in flight, so memory stays bounded whatever the file size. T
 
 he main thread receives them in that order, turns block-relative line numbers into file line numbers, and routes each row by `client % shards` to the shards, which parse the amount and apply the transaction. File order is therefore preserved for every client.
+
+## Last Optimization
+
+I asked `Claude` to do a metaoptimization. Search knobs and try to optimize them using `just bench-cli`. The only change was small adjustment to read block sizes.
+
+This is the final performance value:
+
+```
+Benchmark 1: 1 shard, 1 parser
+  Time (mean ± σ):     977.0 ms ±  41.8 ms    [User: 1589.8 ms, System: 142.0 ms]
+  Range (min … max):   948.1 ms … 1079.3 ms    10 runs
+
+Benchmark 2: 4 shards, 4 parsers
+  Time (mean ± σ):     309.8 ms ±   5.8 ms    [User: 2082.0 ms, System: 165.4 ms]
+  Range (min … max):   303.2 ms … 323.7 ms    10 runs
+
+Benchmark 3: 8 shards, 8 parsers
+  Time (mean ± σ):     224.0 ms ±  10.1 ms    [User: 2447.2 ms, System: 234.0 ms]
+  Range (min … max):   207.5 ms … 233.5 ms    12 runs
+
+Benchmark 4: default
+  Time (mean ± σ):     219.9 ms ±   8.7 ms    [User: 2355.0 ms, System: 197.0 ms]
+  Range (min … max):   204.3 ms … 229.7 ms    13 runs
+```
+
+More than 10x from where we started.

@@ -146,7 +146,7 @@ fn quantity_of_parsers() -> anyhow::Result<usize> {
 
 /// Bytes per parsed block; small values are useful to test block splitting.
 fn block_size() -> anyhow::Result<u64> {
-    Ok(positive_env(BLOCK_SIZE_ENV)?.unwrap_or(1 << 20) as u64)
+    Ok(positive_env(BLOCK_SIZE_ENV)?.unwrap_or(1 << 16) as u64)
 }
 
 fn write_output(engines: &[PaymentsEngine]) -> anyhow::Result<()> {
