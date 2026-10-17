@@ -16,26 +16,11 @@ the output stops with "total of client N does not fit in a decimal" and exit 1,
 with no output. Avoiding it would need the engine to also check
 `available + held` on every change.
 
-### 2. Quoted fields containing a newline depend on the block size
-
-```
-deposit,1,2,"5
-"
-```
-
-This is valid CSV. When it fits in one block it is parsed correctly. When a block
-boundary falls inside the quotes (forced with `PAYENGINE_BLOCK_SIZE=8`), the row
-is split: a bogus "unknown transaction type" error and one more skipped row.
-With 64 KiB blocks this is rare, and the spec data never contains such fields.
-
-**Fix, either:** track quote parity when looking for a block's line boundaries
-(a fast search for `"` and `\n`), or document it as unsupported.
-
 ## Documentation
 
 ### 3. The README TLDR has no known limitations
 
-Items 1 and 2 (if not fixed), and the memory cost: every deposit and withdrawal
+Item 1 (if not fixed), and the memory cost: every deposit and withdrawal
 stays in memory for possible disputes, about 50 bytes each.
 
 ### 4. The Testing section is missing `tests/blocks/`
@@ -46,5 +31,4 @@ blocks to exercise block splitting.
 ## Suggested order
 
 1. #1: only if the remaining case matters.
-2. #2: decide between supporting and documenting.
-3. #3 and #4.
+2. #3 and #4.

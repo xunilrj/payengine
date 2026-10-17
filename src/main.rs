@@ -71,12 +71,15 @@ fn run() -> anyhow::Result<()> {
         .name("block-producer".to_string())
         .spawn({
             let input = input.clone();
-            move || {
-                for block in input.blocks(block_size) {
-                    if blocks.send(block).is_err() {
+            // Reads the file sequentially: only a sequential reader knows
+            // whether a newline is inside quotes.
+            move || -> std::io::Result<()> {
+                for block in input.blocks(block_size)? {
+                    if blocks.send(block?).is_err() {
                         break;
                     }
                 }
+                Ok(())
             }
         })
         .context("failed to start the block producer")?;
@@ -85,7 +88,6 @@ fn run() -> anyhow::Result<()> {
     // Block line numbers start at 1; this turns them into file line numbers.
     let mut lines_before = input.first_line() - 1;
     for parsed in parsed_blocks {
-        let parsed = parsed.context("failed to read the input file")?;
         for mut raw in parsed.rows {
             raw.line += lines_before;
             sharded.apply(ShardMessage::Raw(raw))?;
@@ -100,7 +102,8 @@ fn run() -> anyhow::Result<()> {
     }
     producer
         .join()
-        .map_err(|_| anyhow::anyhow!("block producer panicked"))?;
+        .map_err(|_| anyhow::anyhow!("block producer panicked"))?
+        .context("failed to read the input file")?;
 
     let finished = runtime
         .block_on(sharded.finish())

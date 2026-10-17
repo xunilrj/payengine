@@ -1,16 +1,12 @@
 use csv::{ByteRecord, Position, ReaderBuilder, Terminator};
 use std::env::args;
 use std::fs::File;
-use std::io;
-use std::ops::Range;
+use std::io::{self, Read, Seek, SeekFrom};
 use tracing::trace;
 
 use crate::error::RowError;
 use anyhow::{Context, bail};
 use payengine::raw::{RawAmount, RawTransaction, TransactionType};
-
-/// Read size when a block's last line continues past the block's end.
-const EXTEND_CHUNK: u64 = 64 * 1024;
 
 /// Column positions, found once from the header row.
 struct ColPositions {
@@ -20,10 +16,94 @@ struct ColPositions {
     amount: Option<usize>,
 }
 
-/// A slice of the input after the header, owning every line that starts in
-/// `bytes`. Its last line may continue past `bytes.end`.
+/// Records of the input after the header. It starts and ends on a record
+/// boundary, so it can be parsed on its own.
 pub struct LineBlock {
-    bytes: Range<u64>,
+    bytes: Vec<u8>,
+    /// File offset of `bytes[0]`.
+    offset: u64,
+}
+
+/// Reads the input after the header sequentially and cuts it into blocks of at
+/// least `size` bytes, each ending at a newline outside quotes. Tracking quote
+/// parity here keeps a quoted field containing a newline inside one block.
+pub struct LineBlocks {
+    file: File,
+    size: usize,
+    /// File offset of `pending[0]`.
+    offset: u64,
+    /// Read but not yet handed out.
+    pending: Vec<u8>,
+    /// `pending[..scanned]` is accounted for in `in_quotes`.
+    scanned: usize,
+    in_quotes: bool,
+    eof: bool,
+}
+
+impl Iterator for LineBlocks {
+    type Item = io::Result<LineBlock>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_block().transpose()
+    }
+}
+
+impl LineBlocks {
+    fn next_block(&mut self) -> io::Result<Option<LineBlock>> {
+        let cut = loop {
+            if let Some(cut) = self.find_cut() {
+                break cut;
+            }
+            if self.eof {
+                break self.pending.len();
+            }
+            self.fill()?;
+        };
+        if cut == 0 {
+            return Ok(None);
+        }
+
+        let rest = self.pending.split_off(cut);
+        let block = LineBlock {
+            bytes: std::mem::replace(&mut self.pending, rest),
+            offset: self.offset,
+        };
+        // Blocks are only cut outside quotes.
+        self.offset += cut as u64;
+        self.scanned = 0;
+        self.in_quotes = false;
+        Ok(Some(block))
+    }
+
+    /// Index just past the first newline outside quotes that makes the block
+    /// at least `size` bytes long, scanning only bytes not scanned before.
+    fn find_cut(&mut self) -> Option<usize> {
+        // Quotes before the earliest possible cut only flip the parity.
+        let earliest = (self.size - 1).min(self.pending.len());
+        if self.scanned < earliest {
+            let quotes = memchr::memchr_iter(b'"', &self.pending[self.scanned..earliest]).count();
+            self.in_quotes ^= quotes % 2 == 1;
+            self.scanned = earliest;
+        }
+        while let Some(i) = memchr::memchr2(b'"', b'\n', &self.pending[self.scanned..]) {
+            let i = self.scanned + i;
+            self.scanned = i + 1;
+            if self.pending[i] == b'"' {
+                self.in_quotes = !self.in_quotes;
+            } else if !self.in_quotes {
+                return Some(i + 1);
+            }
+        }
+        None
+    }
+
+    fn fill(&mut self) -> io::Result<()> {
+        let read = (&mut self.file)
+            .take(self.size as u64)
+            .read_to_end(&mut self.pending)?;
+        self.eof = read == 0;
+        Ok(())
+    }
 }
 
 /// The rows of one block. Line numbers (in `rows` and `errors`) are relative
@@ -35,23 +115,9 @@ pub struct ParsedBlock {
     pub lines: u64,
 }
 
-/// The lines a block owns, as read from the file.
-struct OwnedLines {
-    buf: Vec<u8>,
-    skip: usize,
-    offset: u64,
-}
-
-impl OwnedLines {
-    fn bytes(&self) -> &[u8] {
-        &self.buf[self.skip..]
-    }
-}
-
 pub struct Input {
     path: String,
     file: File,
-    len: u64,
     header_end: u64,
     first_line: u64,
     header_len: usize,
@@ -81,7 +147,7 @@ impl Input {
             .context("failed to read CSV header row")?
             .clone();
         let header_end = reader.position().byte();
-        let file = reader.into_inner();
+        let mut file = reader.into_inner();
 
         let column = |name: &str| {
             headers
@@ -108,18 +174,15 @@ impl Input {
             }
         };
 
-        let len = file
-            .metadata()
-            .context("failed to read input file size")?
-            .len();
         let mut header = vec![0; header_end as usize];
-        read_exact_at(&file, &mut header, 0).context("failed to read CSV header row")?;
+        file.seek(SeekFrom::Start(0))
+            .and_then(|_| file.read_exact(&mut header))
+            .context("failed to read CSV header row")?;
         let first_line = 1 + count_newlines(&header);
 
         Ok(Input {
             path,
             file,
-            len,
             header_end,
             first_line,
             header_len: headers.len(),
@@ -136,19 +199,23 @@ impl Input {
         self.first_line
     }
 
-    /// Splits everything after the header into blocks of `size` bytes.
-    pub fn blocks(&self, size: u64) -> impl Iterator<Item = LineBlock> + use<> {
-        let (header_end, len) = (self.header_end, self.len);
-        (header_end..len)
-            .step_by(size as usize)
-            .map(move |start| LineBlock {
-                bytes: start..(start + size).min(len),
-            })
+    /// Everything after the header, in blocks of at least `size` bytes.
+    pub fn blocks(&self, size: u64) -> io::Result<LineBlocks> {
+        let mut file = self.file.try_clone()?;
+        file.seek(SeekFrom::Start(self.header_end))?;
+        Ok(LineBlocks {
+            file,
+            size: size as usize,
+            offset: self.header_end,
+            pending: Vec::new(),
+            scanned: 0,
+            in_quotes: false,
+            eof: false,
+        })
     }
 
-    pub fn parse_block(&self, block: LineBlock) -> io::Result<ParsedBlock> {
-        let lines = self.read_lines(&block)?;
-        let (bytes, offset) = (lines.bytes(), lines.offset);
+    pub fn parse_block(&self, block: LineBlock) -> ParsedBlock {
+        let (bytes, offset) = (block.bytes.as_slice(), block.offset);
 
         let mut parsed = ParsedBlock {
             rows: Vec::new(),
@@ -198,56 +265,7 @@ impl Input {
                 Err(error) => parsed.errors.push(error),
             }
         }
-        Ok(parsed)
-    }
-
-    /// Reads the lines `block` owns: those starting inside it, the last one
-    /// finished even past `bytes.end`.
-    fn read_lines(&self, block: &LineBlock) -> io::Result<OwnedLines> {
-        let mut buf = vec![0; (block.bytes.end - block.bytes.start) as usize];
-        read_exact_at(&self.file, &mut buf, block.bytes.start)?;
-
-        // A line that starts before `start` belongs to the previous block.
-        let skip = if block.bytes.start == self.header_end {
-            0
-        } else {
-            let mut previous = [0];
-            read_exact_at(&self.file, &mut previous, block.bytes.start - 1)?;
-            if previous[0] == b'\n' {
-                0
-            } else {
-                match buf.iter().position(|&b| b == b'\n') {
-                    Some(newline) => newline + 1,
-                    None => buf.len(),
-                }
-            }
-        };
-
-        if skip == buf.len() {
-            return Ok(OwnedLines {
-                buf: Vec::new(),
-                skip: 0,
-                offset: block.bytes.end,
-            });
-        }
-
-        // Finish the last line, which may continue past `bytes.end`.
-        let mut position = block.bytes.end;
-        while buf.last() != Some(&b'\n') && position < self.len {
-            let mut chunk = vec![0; EXTEND_CHUNK.min(self.len - position) as usize];
-            read_exact_at(&self.file, &mut chunk, position)?;
-            match chunk.iter().position(|&b| b == b'\n') {
-                Some(newline) => buf.extend_from_slice(&chunk[..=newline]),
-                None => buf.extend_from_slice(&chunk),
-            }
-            position += chunk.len() as u64;
-        }
-
-        Ok(OwnedLines {
-            buf,
-            skip,
-            offset: block.bytes.start + skip as u64,
-        })
+        parsed
     }
 }
 
@@ -327,22 +345,4 @@ fn count_newlines(bytes: &[u8]) -> u64 {
 /// Lines started in `bytes`; the last one may have no trailing newline.
 fn count_lines(bytes: &[u8]) -> u64 {
     count_newlines(bytes) + u64::from(bytes.last().is_some_and(|&b| b != b'\n'))
-}
-
-#[cfg(unix)]
-fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> io::Result<()> {
-    std::os::unix::fs::FileExt::read_exact_at(file, buf, offset)
-}
-
-#[cfg(windows)]
-fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> io::Result<()> {
-    use std::os::windows::fs::FileExt;
-    let mut done = 0;
-    while done < buf.len() {
-        match file.seek_read(&mut buf[done..], offset + done as u64)? {
-            0 => return Err(io::ErrorKind::UnexpectedEof.into()),
-            n => done += n,
-        }
-    }
-    Ok(())
 }

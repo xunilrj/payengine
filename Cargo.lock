@@ -602,6 +602,7 @@ dependencies = [
  "glob",
  "insta",
  "libtest-mimic",
+ "memchr",
  "micromeasure",
  "rust_decimal",
  "serde",
