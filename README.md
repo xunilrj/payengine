@@ -12,6 +12,7 @@ Deliberate spec interpretations (details in the devlog below):
 - Insufficient-funds withdrawals and duplicated tx ids are ignored as business outcomes, never fatal.
 - A dispute can drive `available` negative: deposit 10, withdraw 8, dispute the deposit and `available` becomes -8 with 10 held. This is the norm in banks: the account is overdrawn, not frozen. We cannot lock the account, we want the user to be able to deposit more money and recover.
 
+
 # Testing
 
 Everything is run with a single command:
@@ -44,6 +45,22 @@ Everything is run with a single command:
 just bench
 just bench-memory
 ```
+
+
+# Configuration
+
+The CLI takes the input file as its only argument. Everything else is optional and set through environment variables:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `PAYENGINE_SHARDS` | half the cores | Number of engine shards. Each client always goes to shard `client % shards`. |
+| `PAYENGINE_PARSERS` | half the cores | Number of CSV parser threads. |
+| `PAYENGINE_BLOCK_SIZE` | `65536` | Bytes of input per parsed block. |
+| `PAYENGINE_SORT_OUTPUT` | unset | When set, output rows are sorted by client. Otherwise they come in any order, which the spec allows. The tests set it. |
+| `RUST_LOG` | `error` | Log filter. `warn` shows every ignored transaction, `trace` every parsed one. |
+| `RUST_LOG_NO_TIMESTAMP` | unset | When set, log lines have no timestamp. The tests set it. |
+
+The three numeric variables must be positive integers; anything else stops the run with an error and exit code `1`. Logs and error reports go to stderr; stdout only ever contains the output CSV.
 
 # Plan
 
