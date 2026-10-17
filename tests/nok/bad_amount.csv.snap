@@ -11,3 +11,4 @@ Error: invalid value: string "abc", expected a Decimal type representing a fixed
    │                ─┬─  
    │                 ╰─── amount
 ───╯
+warning: skipped 1 invalid input row(s)

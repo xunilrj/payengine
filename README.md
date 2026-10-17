@@ -110,7 +110,7 @@ I was reluctant because there is no "unlock" message. But seems to be the correc
 
 ## Improving validation
 
-I am also not sure what is the best way to deal with invalid inputs, like negative values for deposit. I decided to report a friendly error for the bad row (pointing at the offending field) and skip it, then keep processing the file. A single malformed line does not invalidate the whole history of valid transactions, so the application exits `0` even when some rows were rejected. All diagnostics go to stderr, keeping stdout clean for the output CSV.
+I am also not sure what is the best way to deal with invalid inputs, like negative values for deposit. I decided to report a friendly error for the bad row (pointing at the offending field) and skip it, then keep processing the file. A single malformed line does not invalidate the whole history of valid transactions, so the application exits `0` even when some rows were rejected. At the end a summary with the total number of skipped rows is printed to stderr, so a clean exit never hides that some transactions were not applied. All diagnostics go to stderr, keeping stdout clean for the output CSV.
 
 ## Output precision contradiction
 

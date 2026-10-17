@@ -58,9 +58,9 @@ fn write_output(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
 }
 
 fn process_input(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
-    let input = Input::from_args()?;
+    let mut input = Input::from_args()?;
 
-    for transaction in input {
+    for transaction in &mut input {
         let _ = match transaction.ty {
             TransactionType::Deposit => engine.deposit(
                 transaction.tx,
@@ -82,6 +82,11 @@ fn process_input(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
             TransactionType::Resolve => engine.resolve(transaction.tx, transaction.client),
             TransactionType::Chargeback => engine.chargeback(transaction.tx, transaction.client),
         };
+    }
+
+    let skipped = input.skipped();
+    if skipped > 0 {
+        eprintln!("warning: skipped {skipped} invalid input row(s)");
     }
 
     Ok(())

@@ -11,3 +11,4 @@ Error: CSV error: record 1 (line: 2, byte: 25): found record with 3 fields, but 
    │ ──────┬──────  
    │       ╰──────── this record
 ───╯
+warning: skipped 1 invalid input row(s)

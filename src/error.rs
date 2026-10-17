@@ -13,6 +13,7 @@ const TYPE_NAMES: [&str; 5] = ["deposit", "withdrawal", "dispute", "resolve", "c
 pub struct CsvErrors {
     path: String,
     seek_file: Option<File>,
+    skipped: usize,
 }
 
 impl CsvErrors {
@@ -20,13 +21,19 @@ impl CsvErrors {
         CsvErrors {
             path: path.to_string(),
             seek_file: None,
+            skipped: 0,
         }
+    }
+
+    pub fn skipped(&self) -> usize {
+        self.skipped
     }
 
     /// Report and skip one bad record. `field` is the 0-based culprit column
     /// index when known, used to underline the exact token; otherwise the whole
     /// record is underlined.
     pub fn report(&mut self, pos: Option<&Position>, field: Option<usize>, msg: String) {
+        self.skipped += 1;
         let (text, pad, mut span): (String, usize, Range<usize>) = match pos {
             Some(p) => {
                 if self.seek_file.is_none() {
@@ -62,8 +69,8 @@ impl CsvErrors {
         span.end += pad;
         let src = Source::from(src_text);
         let path = self.path.clone();
-        let mut builder = Report::build(ReportKind::Error, (path.clone(), span.clone()))
-            .with_message(msg);
+        let mut builder =
+            Report::build(ReportKind::Error, (path.clone(), span.clone())).with_message(msg);
         if pos.is_some() {
             let label_msg = match field {
                 Some(f) => field_name(f).to_string(),

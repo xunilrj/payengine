@@ -89,6 +89,10 @@ impl Input {
             errs: CsvErrors::new(&path),
         })
     }
+
+    pub fn skipped(&self) -> usize {
+        self.errs.skipped()
+    }
 }
 
 impl Iterator for Input {

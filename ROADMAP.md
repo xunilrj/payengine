@@ -78,3 +78,12 @@ mis-scoring against, the spec.
   dispute lookups. Deliberate trade-off documented in the README ("Frozen Account"
   section). The spec's u32 hint suggests a dense `Vec<Option<TxState>>` alternative;
   optional, only if you want the efficiency talking point.
+
+## Resolved in review
+
+- [x] **Exit code on rows skipped for invalid input.** Kept skip-and-continue with
+  exit 0 (spec guarantees well-formed grader input, partial output beats none, and
+  quarantine-and-continue is the bank-correct reading). Added a stderr summary —
+  `warning: skipped N invalid input row(s)` — after processing, so a clean exit
+  never hides dropped transactions (`CsvErrors` now counts reports, surfaced via
+  `Input::skipped`). README "Improving validation" updated.
