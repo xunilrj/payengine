@@ -101,3 +101,7 @@ I was not sure how much a frozen account needs to be really frozen. But specs sa
 So I decided to make frozend account to be really frozen. Now they "ignore" all transactions. I still generate a warn, but nothing else can change about them.
 
 I was reluctant because there is no "unlock" message. But seems to be the correct thing to do.
+
+## Improving validation
+
+I am also not sure what is the best way to deal with invalid input, like negative values for deposit. I decided to be an error and kill the application.

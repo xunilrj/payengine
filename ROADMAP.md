@@ -29,13 +29,14 @@ Spec: *"If a chargeback occurs the client's account should be immediately frozen
 - Tests: `tests/ok/locked/{deposit_after, withdrawal_after, dispute_after, resolve_after, chargeback_after, only_locked_client_frozen}.csv`. The first five each lock client 1 via a chargeback, then attempt one further operation and assert it is ignored (funds unchanged). `chargeback_after` and `resolve_after` leave `held` at `5` to prove a second dispute-family op on a different tx does not move funds. `only_locked_client_frozen` locks client 1 while client 2 keeps operating normally (deposit + withdrawal succeed), proving the freeze is per-account. All 39 e2e snapshots pass; the 33 pre-existing snapshots are unchanged (no regression).
 - Interaction with item 2: this is what prevents a *new* `dispute` from re-holding funds on an already-charged-back tx — the locked account blocks it at the account level before any tx lookup. No terminal tx status is needed.
 
-## 4. Reject negative amounts — TODO
+## 4. Reject negative amounts — DONE
 
-The spec's overview is explicitly about fraud ("a malicious actor may try to deposit fiat funds, purchase and withdraw BTC, and then reverse their fiat deposit"). A negative `deposit` would *decrease* `available`, and a negative `withdrawal` would *increase* it — both are dangerous and not something a bank permits. `rust_decimal::Decimal` happily accepts negatives and the engine applies them unchecked.
+The spec's overview is explicitly about fraud ("a malicious actor may try to deposit fiat funds, purchase and withdraw BTC, and then reverse their fiat deposit"). A negative `deposit` would *decrease* `available`, and a negative `withdrawal` would *increase* it — both dangerous and not something a bank permits. Implemented as two layers:
 
-- ✅ In `InputCsv::validate` (or the engine), reject `amount < 0` for `deposit`/`withdrawal` with an ariadne report on the `amount` field (field index 3) and skip the row.
-- Why: safety; the spec scores "are you doing something dangerous? tell us why."
-- Tests: `tests/nok/negative_deposit.csv`, `tests/nok/negative_withdrawal.csv`.
+- ✅ **`InputCsv::validate` (ariadne, CSV path):** `deposit`/`withdrawal` with a negative `amount` fail validation with `FieldError { field: 3, msg: "<type> \`amount\` must not be negative" }`. The row is skipped via the existing ariadne path, which underlines the exact offending token (including the `-` sign) and labels it `amount`. `validate` now reads cleanly as: for `deposit`/`withdrawal`, `amount` must be present **and** non-negative; the other variants are not amount-validated. Zero is allowed (not negative).
+- ✅ **Engine (defense-in-depth):** `deposit`/`withdrawal` also guard `amount.is_sign_negative()` and ignore with a `WARN` (`"negative amount; <op> ignored"`), creating no account/tx. This is unreachable via the CSV path (validate catches first) but protects against future callers or direct API use.
+- ✅ Used `Decimal::is_sign_negative()` (not the deprecated `is_negative()`).
+- Tests: `tests/nok/{negative_deposit, negative_withdrawal}.csv` — each follows a valid deposit with a negative op; the valid deposit is kept (`1,10,0,10,false`) and the negative row is rejected with an ariadne error underlining `-5.0`. Engine-level guard covered by unit tests `engine::tests::{deposit_rejects_negative, withdrawal_rejects_negative}` (e2e can't reach the engine guard because validate rejects first). 41 e2e + 2 unit tests pass; pre-existing snapshots unchanged.
 
 ## 5. Handle top-level I/O errors without panicking — TODO
 

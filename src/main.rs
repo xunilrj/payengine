@@ -46,24 +46,20 @@ fn write_output(engine: &mut PaymentsEngine) {
 fn process_input(engine: &mut PaymentsEngine) {
     let input = Input::from_args();
     for transaction in input {
-        match transaction.ty {
-            TransactionType::Deposit => {
-                engine.deposit(
-                    transaction.tx,
-                    transaction.client,
-                    transaction.amount.unwrap(),
-                );
-            }
-            TransactionType::Withdrawal => {
-                engine.withdrawal(
-                    transaction.tx,
-                    transaction.client,
-                    transaction.amount.unwrap(),
-                );
-            }
+        let _ = match transaction.ty {
+            TransactionType::Deposit => engine.deposit(
+                transaction.tx,
+                transaction.client,
+                transaction.amount.unwrap(),
+            ),
+            TransactionType::Withdrawal => engine.withdrawal(
+                transaction.tx,
+                transaction.client,
+                transaction.amount.unwrap(),
+            ),
             TransactionType::Dispute => engine.dispute(transaction.tx, transaction.client),
             TransactionType::Resolve => engine.resolve(transaction.tx, transaction.client),
             TransactionType::Chargeback => engine.chargeback(transaction.tx, transaction.client),
-        }
+        };
     }
 }

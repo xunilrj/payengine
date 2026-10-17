@@ -29,45 +29,34 @@ pub struct InputCsv {
     pub amount: Option<Decimal>,
 }
 
-/// A semantic validation failure on an otherwise well-formed record: the 0-based
-/// culprit column and a human-readable message. serde cannot express these
-/// checks (e.g. a `deposit` with no `amount` deserializes fine as `None`), so
-/// [`InputCsv::validate`] performs them after deserialization.
 struct FieldError {
     field: usize,
     msg: String,
 }
 
 impl InputCsv {
-    /// Checks that cannot be expressed in the serde schema — currently that a
-    /// `deposit` or `withdrawal` carries an `amount`. `dispute`/`resolve`/
-    /// `chargeback` never need one. On success the caller may safely `unwrap`
-    /// `amount` for the variants that require it.
+    /// Extra validation for the deserialized transaction. Done here
+    /// to enable more user friendly error on the terminal
     fn validate(&self) -> Result<(), FieldError> {
-        let needs_amount = matches!(
-            self.ty,
-            TransactionType::Deposit | TransactionType::Withdrawal
-        );
-        if needs_amount && self.amount.is_none() {
-            let name = match self.ty {
-                TransactionType::Deposit => "deposit",
-                TransactionType::Withdrawal => "withdrawal",
-                _ => unreachable!("guarded by needs_amount"),
-            };
-            return Err(FieldError {
+        let name = match self.ty {
+            TransactionType::Deposit => "deposit",
+            TransactionType::Withdrawal => "withdrawal",
+            _ => return Ok(()),
+        };
+        match self.amount {
+            None => Err(FieldError {
                 field: 3,
                 msg: format!("{name} requires an `amount`"),
-            });
+            }),
+            Some(a) if a.is_sign_negative() => Err(FieldError {
+                field: 3,
+                msg: format!("{name} `amount` must not be negative"),
+            }),
+            Some(_) => Ok(()),
         }
-        Ok(())
     }
 }
 
-/// Lazy streaming reader over the input CSV. Iterating yields only records that
-/// deserialized **and** passed [`InputCsv::validate`]; malformed rows are
-/// reported via [`CsvErrors`] (ariadne diagnostic on stderr) and skipped, so a
-/// run never aborts on a single bad row. The file is streamed record-by-record
-/// and, on error, only the single offending line is read back — never slurped.
 pub struct Input {
     rdr: csv::Reader<std::fs::File>,
     headers: ByteRecord,
@@ -78,19 +67,18 @@ impl Input {
     /// Opens the CSV given as the first CLI argument and reads its header row.
     pub fn from_args() -> Self {
         let path = args().nth(1).unwrap();
-        // Pinned to the crate target so log output stays stable regardless of
-        // which module emits it.
         trace!(target: "payengine", input = &path, "Input file");
-        let mut rdr = ReaderBuilder::new()
+
+        let mut reader = ReaderBuilder::new()
             .delimiter(b',')
             .has_headers(true)
             .trim(Trim::All)
             .terminator(Terminator::CRLF)
             .from_path(&path)
             .unwrap();
-        let headers = rdr.byte_headers().unwrap().clone();
+        let headers = reader.byte_headers().unwrap().clone();
         Input {
-            rdr,
+            rdr: reader,
             headers,
             errs: CsvErrors::new(&path),
         }
