@@ -3,13 +3,13 @@
 Deliberate spec interpretations (details in the devlog below):
 
 - Locked accounts ignore all further transactions. Spec is not clear on what to do with locked accounts; I chose the "fully frozen" bank reading;
-- Spec says `chargeback` is the "final state of the dispute". It is not clear this means nothing else can happen. I return the transaction to the `Normal` state, but with the client locked, nothing can happen anyway;
+- Spec calls `chargeback` the end of a dispute. It is not clear this means nothing else can happen. I return the transaction to the `Normal` state, but with the client locked, nothing can happen anyway;
 - Amounts are output with natural precision (`2`, `1.5`), and are not forced to 4 decimal places. Spec contradicts itself; round values are explicitly accepted either way.
 - The spec only describes disputes on deposits. A disputed withdrawal only flags the transaction (nothing moves to `held`), and its chargeback refunds the amount to `available` and locks the client;
-- The redundant client id in dispute/resolve/chargeback is used to verify the transaction owner. A mismatch is ignored with a warning;
+- The redundant client id in dispute/resolve/chargeback is used to verify the transaction owner. With more than one shard the tx will possibly end in the wrong shard, and it will be ignored with "tx not found" instead;
 - Invalid rows (bad type, negative amount, etc.) are reported, skipped, and the file continues to be processed; the application exits `0` and prints a summary of skipped rows to stderr;
 - Amounts of zero are valid transactions: recorded like any other, and can be disputed/charged back (a zero chargeback still locks the client);
-- Insufficient-funds withdrawals and duplicated tx ids are ignored as business outcomes, never fatal. Spec: "you can ignore it";
+- Insufficient-funds withdrawals and duplicated tx ids are ignored as business outcomes, never fatal.
 - A dispute can drive `available` negative: deposit 10, withdraw 8, dispute the deposit and `available` becomes -8 with 10 held. This is the norm in banks: the account is overdrawn, not frozen. We cannot lock the account, we want the user to be able to deposit more money and recover.
 
 # Testing
@@ -30,8 +30,20 @@ The fixtures are organized by what they test:
 - `tests/ok/` — valid inputs;
 - `tests/nok/` — invalid inputs;
 - `tests/cli/` — CLI misuse;
+- `tests/sharding/` — shard tests.
 
 When a change is intentional, new snapshots can be accepted with `just accept-tests`.
+
+# Benchmarks
+
+Benchmarks can be run with: 
+
+Everything is run with a single command:
+
+```sh
+just bench
+just bench-memory
+```
 
 # Plan
 
@@ -124,7 +136,7 @@ The fix is `rust_decimal`'s `serde-str` feature, made for untyped formats like C
 
 It was not asked but I decided to return more user friendly errors, because it is one thing I believe is very important.
 
-I also decided to reject extra CLI arguments: the spec says the input file is the first and only argument, so anything more is a usage error (exit `1`) instead of being silently ignored.
+I also decided to reject extra CLI arguments: the spec expects the input file as the sole argument, so anything more is a usage error (exit `1`) instead of being silently ignored.
 
 ## Changing user id and tx id types
 
@@ -138,9 +150,7 @@ I consider the following solutions:
 
 ## Frozen Account
 
-I was not sure how much a frozen account needs to be really frozen. But specs say
-
-> When in doubt on how to interpret a requirement, try to make assumptions that make sense for a bank (think an ATM or more elaborate transaction processors), and document them.
+I was not sure how much a frozen account needs to be really frozen. But the spec asks to resolve ambiguities the way a bank (an ATM, a transaction processor) would, and to document the choice.
 
 So I decided to make frozen accounts to be really frozen. Now they "ignore" all transactions. I still generate a warn, but nothing else can change about them.
 
@@ -152,13 +162,9 @@ I am also not sure what is the best way to deal with invalid inputs, like negati
 
 ## Output precision contradiction
 
-The spec contradicts itself on how to display output decimals, so I had to pick one reading.
+The spec contradicts itself on how to display output decimals, so I had to pick one reading. On one hand, it says that how round values are displayed (and row order) is irrelevant. On the other hand, it says to assume and output four decimal places.
 
-> Spacing and displaying decimals for round values do not matter. Row ordering also does not matter. The above output will be considered the exact same as the following
-
-> You can assume a precision of **four places past the decimal** and should output values with the same level of precision.
-
-I am reading the second phrase as: "you should be able to output at least 4 digits of precision". That means if we have something like 10.123456789, output should never truncate/round it to 10.123, because it has less precision than the grader expects. But it is not a problem to emit more, or to round 1.0000 to 1.
+I am reading the second statement as: "you should be able to output at least 4 digits of precision". That means if we have something like 10.123456789, output should never truncate/round it to 10.123, because it has less precision than the grader expects. But it is not a problem to emit more, or to round 1.0000 to 1.
 
 ## Amount = Zero
 
@@ -252,9 +258,9 @@ I am going to stick with `HashMap` for now.
 
 ## Shards
 
-Now I am trying a ramp up of the architecture to support "What
-if your code was bundled in a server, and these CSVs came from
-thousands of concurrent TCP streams" of the spec.
+Now I am trying a ramp up of the architecture to support the spec's
+question about running inside a server, with CSVs arriving from many
+concurrent TCP streams.
 
 What I am doing is keeping the engine itself single-threaded but sharding by client id.
 A simple benchmark is very disheartening.

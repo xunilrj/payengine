@@ -102,7 +102,7 @@ from the string, e.g. `#[serde(with = "rust_decimal::serde::str_option")]` (the
 ### 4. Amounts with more than 4 decimal places are accepted as-is
 
 `1.123456` is stored and printed as `1.123456`. The spec says to assume 4 places
-and "output values with the same level of precision". The README documents
+and to output that same precision. The README documents
 emitting more than 4 places as intentional. Inputs should never have more than 4,
 so the grader shouldn't see this, but you still need a policy: reject, round
 (banker's / `MidpointAwayFromZero`), or keep. Rejecting or rounding to 4 on input
