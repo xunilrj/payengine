@@ -5,7 +5,7 @@ use std::env::args;
 use tracing::trace;
 
 use crate::error::{CsvErrors, culprit_field};
-use anyhow::Context;
+use anyhow::{Context, bail};
 
 #[derive(Debug, Deserialize)]
 pub enum TransactionType {
@@ -67,9 +67,15 @@ pub struct Input {
 impl Input {
     /// Opens the CSV given as the first CLI argument and reads its header row.
     pub fn from_args() -> anyhow::Result<Self> {
-        let path = args()
+        let mut args = args();
+        let path = args
             .nth(1)
             .context("missing input file argument — usage: payengine <input.csv>")?;
+        // The spec says the input file is the first and only argument, so
+        // anything more is a usage error rather than something to ignore.
+        if let Some(extra) = args.next() {
+            bail!("unexpected extra argument {extra:?} — usage: payengine <input.csv>");
+        }
         trace!(target: "payengine", input = &path, "Input file");
 
         let mut reader = ReaderBuilder::new()

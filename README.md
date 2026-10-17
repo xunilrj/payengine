@@ -115,6 +115,8 @@ Now we are going to improve the issue of precision of `f32`. I decided to use `r
 
 It was not asked but I decided to return more user friendly errors, because it is one thing I believe is very important.
 
+I also decided to reject extra CLI arguments: the spec says the input file is the first and only argument, so anything more is a usage error (exit `1`) instead of being silently ignored.
+
 ## Changing user id and tx id types
 
 Now I changed user id and transaxtion id to the suggested types. That enticed me to consider changing the accounts `BTreeMap` to a simple pre allocated `Vec`. `O(1)` access, but this is far from being the bottleneck and will almost ways use more memory. I decided to keep the `BTreeMap`: it is simpler, sorted output for free, and memory scales with the number of clients seen, not with the whole `u16` range.

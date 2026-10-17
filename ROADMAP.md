@@ -82,9 +82,12 @@ mis-scoring against, the spec.
   prevent recovery deposits. Documented in README "# TLDR"; e2e fixtures
   `tests/ok/overdrawn/negative.csv` (ends at available -8) and
   `tests/ok/overdrawn/recovered.csv` (extra deposit brings it back to 1) added.
-- [ ] **Extra CLI arguments are silently ignored** — spec says the input file is "the
+- [x] **Extra CLI arguments are silently ignored** — spec says the input file is "the
   first and only argument". Consider erroring on extra args (one-line change, removes
   an implicit assumption).
+  Done: `Input::from_args` now bails with a usage error (`unexpected extra argument
+  ... — usage: payengine <input.csv>`, exit 1). Covered by
+  `tests/cli/extra_arg.toml`; README "User friendly error" updated.
 - [x] **All transactions are retained in memory** (`BTreeMap<u32, TxState>`) for
   dispute lookups. The spec's u32 hint suggests a dense `Vec<Option<TxState>>`
   alternative; optional, only if you want the efficiency talking point.
