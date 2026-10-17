@@ -156,12 +156,12 @@ fn write_output(engines: &[PaymentsEngine]) -> anyhow::Result<()> {
     let mut rows = engines
         .iter()
         .flat_map(|engine| engine.iter_accounts())
-        .map(|(id, account)| {
-            let total = account
-                .available
-                .checked_add(account.held)
-                .with_context(|| format!("total of client {id} does not fit in a decimal"))?;
-            anyhow::Ok(OutputCsv {
+        .filter_map(|(id, account)| {
+            let Some(total) = account.available.checked_add(account.held) else {
+                eprintln!("warning: client {id} left out of the output: its total does not fit in a decimal");
+                return None;
+            };
+            Some(OutputCsv {
                 client: *id,
                 available: account.available.normalize(),
                 held: account.held.normalize(),
@@ -169,7 +169,7 @@ fn write_output(engines: &[PaymentsEngine]) -> anyhow::Result<()> {
                 locked: account.locked,
             })
         })
-        .collect::<anyhow::Result<Vec<_>>>()?;
+        .collect::<Vec<_>>();
     if std::env::var_os(SORT_OUTPUT_ENV).is_some() {
         rows.sort_unstable_by_key(|row| row.client);
     }

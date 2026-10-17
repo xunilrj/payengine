@@ -12,6 +12,11 @@ Deliberate spec interpretations (details in the devlog below):
 - Insufficient-funds withdrawals and duplicated tx ids are ignored as business outcomes, never fatal.
 - A dispute can drive `available` negative: deposit 10, withdraw 8, dispute the deposit and `available` becomes -8 with 10 held. This is the norm in banks: the account is overdrawn, not frozen. We cannot lock the account, we want the user to be able to deposit more money and recover.
 
+Known limitations:
+
+- Every deposit and withdrawal stays in memory for possible disputes, about 50 bytes each (around 5 GB for 100M transactions);
+- A transaction that would overflow a balance (`Decimal` holds about 28 digits) is ignored with a warning. If `available` and `held` fit but their sum does not, that account is left out of the output with a warning on stderr. Both only happen with hostile input.
+
 
 # Testing
 

@@ -1,10 +1,13 @@
 ---
 source: tests/e2e.rs
 ---
-exit status: 1
+exit status: 0
 
 TRACE payengine::input: input file opened path="tests/ok/overflow/total.csv"
 TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 1, amount: 79228162514264337593543950335 }
 TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 1, tx: 1 }
 TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 2, amount: 79228162514264337593543950335 }
-total of client 1 does not fit in a decimal
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 2, tx: 3, amount: 5 }
+warning: client 1 left out of the output: its total does not fit in a decimal
+client,available,held,total,locked
+2,5,0,5,false
