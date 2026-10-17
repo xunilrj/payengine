@@ -74,10 +74,14 @@ mis-scoring against, the spec.
   Done: covered both in the README "# TLDR" bullet and the "Disputes on withdrawals"
   devlog section (which explains the deviation from the spec's "total should
   decrease" wording).
-- [ ] **Dispute can drive `available` negative** when the deposited funds were already
+- [x] **Dispute can drive `available` negative** when the deposited funds were already
   partially withdrawn (deposit 10, withdraw 8, dispute the deposit → available -8,
   held 10). This follows the spec's formula literally, but no test fixture covers it.
   Add a fixture + snapshot documenting the behavior.
+  Done: kept the behavior — overdrawn is the bank norm and locking the account would
+  prevent recovery deposits. Documented in README "# TLDR"; e2e fixtures
+  `tests/ok/overdrawn/negative.csv` (ends at available -8) and
+  `tests/ok/overdrawn/recovered.csv` (extra deposit brings it back to 1) added.
 - [ ] **Extra CLI arguments are silently ignored** — spec says the input file is "the
   first and only argument". Consider erroring on extra args (one-line change, removes
   an implicit assumption).

@@ -1,0 +1,12 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine: Input file input="tests/ok/overdrawn/recovered.csv"
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10) }
+TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 1, tx: 2, amount: Some(8) }
+TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 3, amount: Some(9) }
+client,available,held,total,locked
+1,1,10,11,false

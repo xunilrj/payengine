@@ -10,6 +10,7 @@ Deliberate spec interpretations (details in the devlog below):
 - Invalid rows (bad type, negative amount, etc.) are reported, skipped, and the file continues to be processed; the application exits `0` and prints a summary of skipped rows to stderr;
 - Amounts of zero are valid transactions: recorded like any other, and can be disputed/charged back (a zero chargeback still locks the client);
 - Insufficient-funds withdrawals and duplicated tx ids are ignored as business outcomes, never fatal. Spec: "you can ignore it";
+- A dispute can drive `available` negative: deposit 10, withdraw 8, dispute the deposit and `available` becomes -8 with 10 held. This is the norm in banks: the account is overdrawn, not frozen. We cannot lock the account, we want the user to be able to deposit more money and recover.
 
 # Testing
 
