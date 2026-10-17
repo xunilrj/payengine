@@ -31,7 +31,8 @@ The fixtures are organized by what they test:
 - `tests/ok/` — valid inputs;
 - `tests/nok/` — invalid inputs;
 - `tests/cli/` — CLI misuse;
-- `tests/sharding/` — shard tests.
+- `tests/sharding/` — shard tests;
+- `tests/blocks/` — block splitting.
 
 When a change is intentional, new snapshots can be accepted with `just accept-tests`.
 
