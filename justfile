@@ -1,33 +1,38 @@
-accept-tests:
-    cargo t || true
-    cargo insta accept
-
-# Search the entire repo history (commits, patches, deleted lines, file names, refs, working tree) for a term.
-# Usage: just search-history <term>
-search-history term:
+# The checks a CI runs: formatting, clippy with warnings as errors, tests,
+# documentation, and a dependency audit (vulnerabilities, licenses, sources).
+# Builds with the committed Cargo.lock. Installs cargo-deny if missing.
+[group('CI')]
+ci:
     #!/usr/bin/env bash
     set -euo pipefail
-    q="{{term}}"
-    export GIT_PAGER=cat
-    echo "== commit messages =="
-    git log --all --oneline -i --grep "$q" || true
-    echo "== patch content (pickaxe) =="
-    git log --all -p -S "$q" --pickaxe-regex || true
-    echo "== deleted lines =="
-    git log --all --diff-filter=D -p | grep -i "$q" || true
-    echo "== file names in history =="
-    git log --all --name-only --pretty=format: | grep -i "$q" || true
-    echo "== refs =="
-    git for-each-ref --format='%(refname)' | grep -i "$q" || true
-    echo "== working tree =="
-    grep -ri "$q" . --exclude-dir=.git || true
-    echo "== done =="
+    command -v cargo-deny >/dev/null || cargo install --locked cargo-deny
+    cargo fmt --all --check
+    cargo clippy --all-features --all-targets -- -D warnings
+    # Every target except benches: --all-targets would run the criterion
+    # benchmarks here. Clippy above still compiles them.
+    cargo test --all-features --lib --bins --tests --examples --locked
+    RUSTDOCFLAGS="-D warnings" cargo doc --all-features --no-deps --locked
+    cargo deny check
 
+# Run every benchmark in the repo: the in-process engine and sharded benches,
+# the peak-RSS measurement per size, and the hyperfine CLI comparison.
+# Usage: just bench-all
+[group('Benchmarks and profiling')]
+bench-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just bench
+    just bench-memory
+    just bench-cli
+
+# Usage: just bench [filter]
+[group('Benchmarks and profiling')]
 bench filter="":
     cargo bench --bench engine -- {{filter}}
 
 # Peak memory (max RSS) of each benchmark. Each size runs in its own process,
 # so the peak belongs to that size only. Usage: just bench-memory [sizes]
+[group('Benchmarks and profiling')]
 bench-memory sizes="10k 100k 1M 10M 100M":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -49,6 +54,7 @@ bench-memory sizes="10k 100k 1M 10M 100M":
     rm -f "$log"
 
 # Usage: just bench-cli [rows]
+[group('Benchmarks and profiling')]
 bench-cli rows="10000000":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -71,6 +77,7 @@ bench-cli rows="10000000":
 # Profile the CLI with samply on the same generated input as bench-cli, and
 # print the command that opens the saved profile.
 # Installs samply if missing. Usage: just profile-cli [rows]
+[group('Benchmarks and profiling')]
 [macos]
 profile-cli rows="10000000":
     #!/usr/bin/env bash
@@ -88,15 +95,30 @@ profile-cli rows="10000000":
         target/profiling/payengine "$input" > /dev/null
     echo "To see run: samply load $profile"
 
-# The checks a CI runs: formatting, clippy with warnings as errors, tests,
-# documentation, and a dependency audit (vulnerabilities, licenses, sources).
-# Builds with the committed Cargo.lock. Installs cargo-deny if missing.
-ci:
+# Accept the changed snapshot tests as the new expected output.
+[group('Development helpers')]
+accept-tests:
+    cargo t || true
+    cargo insta accept
+
+# Search the entire repo history (commits, patches, deleted lines, file names, refs, working tree) for a term.
+# Usage: just search-history <term>
+[group('Development helpers')]
+search-history term:
     #!/usr/bin/env bash
     set -euo pipefail
-    command -v cargo-deny >/dev/null || cargo install --locked cargo-deny
-    cargo fmt --all --check
-    cargo clippy --all-targets --locked -- -D warnings
-    cargo test --locked
-    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked
-    cargo deny check
+    q="{{term}}"
+    export GIT_PAGER=cat
+    echo "== commit messages =="
+    git log --all --oneline -i --grep "$q" || true
+    echo "== patch content (pickaxe) =="
+    git log --all -p -S "$q" --pickaxe-regex || true
+    echo "== deleted lines =="
+    git log --all --diff-filter=D -p | grep -i "$q" || true
+    echo "== file names in history =="
+    git log --all --name-only --pretty=format: | grep -i "$q" || true
+    echo "== refs =="
+    git for-each-ref --format='%(refname)' | grep -i "$q" || true
+    echo "== working tree =="
+    grep -ri "$q" . --exclude-dir=.git || true
+    echo "== done =="
