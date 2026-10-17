@@ -229,7 +229,7 @@ size       peak RSS
 100M        4552 MB
 ```
 
-`HashMap` endup being faster AND cheaper in big datasets. `Dashmap` is very similar with `HashMap`.
+`HashMap` ended up being faster AND cheaper in big datasets. `Dashmap` is very similar with `HashMap`.
 
 ```
 ┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
@@ -288,11 +288,11 @@ batch before sending. And doing a simple batch we get much better results.
 └─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
 ```
 
-We are 7x better with 8 cores. Very near the limit of my machine which only hs 5 performance cores. Wee may gain event more pinning engines into performance cores. But that is too much for this demo.
+We are 7x better with 8 cores. Very near the limit of my machine which only has 5 performance cores. We may gain even more pinning engines into performance cores. But that is too much for this demo.
 
 So instead of making the shared memory protected with `Mutex` or something similar, I am avoiding sharing memory at all, following a more "actor" like approach. This become much complex if there were transaction touching two accounts, but given that we do not have, we can avail this simplicity here.
 
-Anotehr improvement is. We are sorting accounts at the end, and we do not need accounts to be `BTreeMap` any more. Changing it to `HashMap` gives us:
+Another improvement is. We are sorting accounts at the end, and we do not need accounts to be `BTreeMap` any more. Changing it to `HashMap` gives us:
 
 ```
 ┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
