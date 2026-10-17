@@ -59,6 +59,12 @@ impl LineBlocks {
             }
             self.fill()?;
         };
+
+        debug_assert!(
+            !self.in_quotes || self.eof,
+            "a block can end inside quotes only at EOF"
+        );
+
         if cut == 0 {
             return Ok(None);
         }

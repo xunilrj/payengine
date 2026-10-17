@@ -113,6 +113,10 @@ impl<R> Iterator for OrderedReceiver<R> {
         while self.ring[slot].is_none() {
             // Closed only when every worker is done: nothing is pending.
             let (seq, result) = self.results.recv().ok()?;
+            debug_assert!(
+                self.ring[seq % len].is_none(),
+                "two results landed in the same ring slot; ordering would be lost"
+            );
             self.ring[seq % len] = Some(result);
         }
         self.next += 1;

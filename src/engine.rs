@@ -126,6 +126,19 @@ pub struct Account {
     pub locked: bool,
 }
 
+#[inline]
+fn debug_assert_funds_moved(before: (Decimal, Decimal), account: &Account) {
+    debug_assert_eq!(
+        before.0.checked_add(before.1),
+        account.available.checked_add(account.held),
+        "moving disputed funds must not change available + held"
+    );
+    debug_assert!(
+        account.held >= Decimal::ZERO,
+        "held funds must never be negative"
+    );
+}
+
 #[derive(Default)]
 pub struct PaymentsEngine {
     accounts: HashMap<u16, Account, foldhash::fast::RandomState>,
@@ -240,6 +253,7 @@ impl PaymentsEngine {
             (TxStatus::Normal, TxKind::Deposit) => {
                 // Spec: move the deposited funds from available to held.
                 let account = self.get_account(id);
+                let before = (account.available, account.held);
                 let available = account
                     .available
                     .checked_sub(amount)
@@ -249,6 +263,7 @@ impl PaymentsEngine {
                     .checked_add(amount)
                     .ok_or(EngineError::Overflow)?;
                 (account.available, account.held) = (available, held);
+                debug_assert_funds_moved(before, account);
             }
             (TxStatus::Normal, TxKind::Withdrawal) => {
                 // The withdrawn funds already left the account; there is
@@ -281,6 +296,7 @@ impl PaymentsEngine {
             }
             (TxStatus::InDispute, TxKind::Deposit) => {
                 let account = self.get_account(id);
+                let before = (account.available, account.held);
                 let available = account
                     .available
                     .checked_add(amount)
@@ -290,6 +306,7 @@ impl PaymentsEngine {
                     .checked_sub(amount)
                     .ok_or(EngineError::Overflow)?;
                 (account.available, account.held) = (available, held);
+                debug_assert_funds_moved(before, account);
             }
             (TxStatus::InDispute, TxKind::Withdrawal) => {
                 // Nothing was moved on dispute, so nothing to release.
@@ -321,6 +338,10 @@ impl PaymentsEngine {
                     .held
                     .checked_sub(amount)
                     .ok_or(EngineError::Overflow)?;
+                debug_assert!(
+                    account.held >= Decimal::ZERO,
+                    "held funds must never be negative"
+                );
             }
             (TxStatus::InDispute, TxKind::Withdrawal) => {
                 // Reverse the withdrawal: refund the withdrawn funds.
@@ -335,6 +356,8 @@ impl PaymentsEngine {
             }
         }
         self.lock_account(id);
+
+        debug_assert!(self.is_locked(id), "a chargeback must freeze the account");
         if let Some(tx) = self.txs_amounts.get_mut(&txid) {
             tx.status = TxStatus::Normal;
         }
