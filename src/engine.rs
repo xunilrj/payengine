@@ -2,6 +2,7 @@ use tracing::warn;
 
 use rust_decimal::Decimal;
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineError {
@@ -15,6 +16,26 @@ pub enum EngineError {
     TxRejected,
     DuplicateTx,
 }
+
+impl fmt::Display for EngineError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EngineError::AccountFrozen => f.write_str("account is frozen"),
+            EngineError::NegativeAmount => f.write_str("amount is negative"),
+            EngineError::InsufficientFunds => f.write_str("insufficient available funds"),
+            EngineError::TxNotFound => f.write_str("tx not found"),
+            EngineError::ClientMismatch { expected, .. } => {
+                write!(f, "tx belongs to client {expected}")
+            }
+            EngineError::AlreadyInDispute => f.write_str("tx is already in dispute"),
+            EngineError::NotInDispute => f.write_str("tx is not in dispute"),
+            EngineError::TxRejected => f.write_str("tx was rejected"),
+            EngineError::DuplicateTx => f.write_str("duplicate tx id"),
+        }
+    }
+}
+
+impl std::error::Error for EngineError {}
 
 /// One validated transaction. Only deposits and withdrawals carry an amount,
 /// so a missing amount cannot be represented.
@@ -54,6 +75,26 @@ impl Transaction {
             | Transaction::Chargeback { client, .. } => client,
         }
     }
+
+    pub fn tx(&self) -> u32 {
+        match *self {
+            Transaction::Deposit { tx, .. }
+            | Transaction::Withdrawal { tx, .. }
+            | Transaction::Dispute { tx, .. }
+            | Transaction::Resolve { tx, .. }
+            | Transaction::Chargeback { tx, .. } => tx,
+        }
+    }
+
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Transaction::Deposit { .. } => "deposit",
+            Transaction::Withdrawal { .. } => "withdrawal",
+            Transaction::Dispute { .. } => "dispute",
+            Transaction::Resolve { .. } => "resolve",
+            Transaction::Chargeback { .. } => "chargeback",
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -91,26 +132,34 @@ pub struct PaymentsEngine {
 
 impl PaymentsEngine {
     pub fn apply(&mut self, transaction: Transaction) -> Result<(), EngineError> {
-        match transaction {
+        let result = match transaction {
             Transaction::Deposit { client, tx, amount } => self.deposit(tx, client, amount),
             Transaction::Withdrawal { client, tx, amount } => self.withdrawal(tx, client, amount),
             Transaction::Dispute { client, tx } => self.dispute(tx, client),
             Transaction::Resolve { client, tx } => self.resolve(tx, client),
             Transaction::Chargeback { client, tx } => self.chargeback(tx, client),
+        };
+
+        if let Err(error) = &result {
+            warn!(
+                client = transaction.client(),
+                tx = transaction.tx(),
+                "{} ignored: {error}",
+                transaction.kind()
+            );
         }
+
+        result
     }
 
     pub fn deposit(&mut self, txid: u32, id: u16, amount: Decimal) -> Result<(), EngineError> {
         if self.is_locked(id) {
-            warn!(client = id, txid = txid, "account frozen; deposit ignored");
             return Err(EngineError::AccountFrozen);
         }
         if amount.is_sign_negative() {
-            warn!(client = id, txid = txid, "negative amount; deposit ignored");
             return Err(EngineError::NegativeAmount);
         }
         if self.txs_amounts.contains_key(&txid) {
-            warn!(client = id, txid = txid, "duplicate tx id; deposit ignored");
             return Err(EngineError::DuplicateTx);
         }
         let account = self.get_account(id);
@@ -130,27 +179,12 @@ impl PaymentsEngine {
 
     pub fn withdrawal(&mut self, txid: u32, id: u16, amount: Decimal) -> Result<(), EngineError> {
         if self.is_locked(id) {
-            warn!(
-                client = id,
-                txid = txid,
-                "account frozen; withdrawal ignored"
-            );
             return Err(EngineError::AccountFrozen);
         }
         if amount.is_sign_negative() {
-            warn!(
-                client = id,
-                txid = txid,
-                "negative amount; withdrawal ignored"
-            );
             return Err(EngineError::NegativeAmount);
         }
         if self.txs_amounts.contains_key(&txid) {
-            warn!(
-                client = id,
-                txid = txid,
-                "duplicate tx id; withdrawal ignored"
-            );
             return Err(EngineError::DuplicateTx);
         }
 
@@ -189,7 +223,6 @@ impl PaymentsEngine {
 
     pub fn dispute(&mut self, txid: u32, id: u16) -> Result<(), EngineError> {
         if self.is_locked(id) {
-            warn!(client = id, txid = txid, "account frozen; dispute ignored");
             return Err(EngineError::AccountFrozen);
         }
 
@@ -209,11 +242,9 @@ impl PaymentsEngine {
                 // reverse (refund) it, keeping `held` non-negative.
             }
             (TxStatus::InDispute, _) => {
-                warn!(txid = txid, "Tx was already in dispute");
                 return Err(EngineError::AlreadyInDispute);
             }
             (TxStatus::Rejected, _) => {
-                warn!(txid = txid, "Cannot dispute a rejected tx");
                 return Err(EngineError::TxRejected);
             }
         }
@@ -225,14 +256,12 @@ impl PaymentsEngine {
 
     pub fn resolve(&mut self, txid: u32, id: u16) -> Result<(), EngineError> {
         if self.is_locked(id) {
-            warn!(client = id, txid = txid, "account frozen; resolve ignored");
             return Err(EngineError::AccountFrozen);
         }
         let (kind, amount, status) = self.validate_tx(txid, id)?;
 
         match (status, kind) {
             (TxStatus::Normal, _) => {
-                warn!(txid = txid, "Tx was NOT in dispute");
                 return Err(EngineError::NotInDispute);
             }
             (TxStatus::InDispute, TxKind::Deposit) => {
@@ -244,7 +273,6 @@ impl PaymentsEngine {
                 // Nothing was moved on dispute, so nothing to release.
             }
             (TxStatus::Rejected, _) => {
-                warn!(txid = txid, "Cannot resolve a rejected tx");
                 return Err(EngineError::TxRejected);
             }
         }
@@ -256,18 +284,12 @@ impl PaymentsEngine {
 
     pub fn chargeback(&mut self, txid: u32, id: u16) -> Result<(), EngineError> {
         if self.is_locked(id) {
-            warn!(
-                client = id,
-                txid = txid,
-                "account frozen; chargeback ignored"
-            );
             return Err(EngineError::AccountFrozen);
         }
         let (kind, amount, status) = self.validate_tx(txid, id)?;
 
         match (status, kind) {
             (TxStatus::Normal, _) => {
-                warn!(txid = txid, "Tx was NOT in dispute");
                 return Err(EngineError::NotInDispute);
             }
             (TxStatus::InDispute, TxKind::Deposit) => {
@@ -279,7 +301,6 @@ impl PaymentsEngine {
                 self.get_account(id).available += amount;
             }
             (TxStatus::Rejected, _) => {
-                warn!(txid = txid, "Cannot chargeback a rejected tx");
                 return Err(EngineError::TxRejected);
             }
         }
@@ -305,22 +326,11 @@ impl PaymentsEngine {
     /// Validate this transaction belongs to this user
     fn validate_tx(&self, txid: u32, id: u16) -> Result<(TxKind, Decimal, TxStatus), EngineError> {
         match self.txs_amounts.get(&txid) {
-            None => {
-                warn!(txid = txid, "Tx not found");
-                Err(EngineError::TxNotFound)
-            }
-            Some(tx) if tx.client != id => {
-                warn!(
-                    txid = txid,
-                    expected = tx.client,
-                    got = id,
-                    "Client mismatch"
-                );
-                Err(EngineError::ClientMismatch {
-                    expected: tx.client,
-                    got: id,
-                })
-            }
+            None => Err(EngineError::TxNotFound),
+            Some(tx) if tx.client != id => Err(EngineError::ClientMismatch {
+                expected: tx.client,
+                got: id,
+            }),
             Some(tx) => Ok((tx.kind, tx.amount, tx.status)),
         }
     }

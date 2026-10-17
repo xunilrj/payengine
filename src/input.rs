@@ -90,7 +90,7 @@ impl Input {
         if let Some(extra) = args.next() {
             bail!("unexpected extra argument {extra:?} — usage: payengine <input.csv>");
         }
-        trace!(target: "payengine", input = &path, "Input file");
+        trace!(path = &path, "input file opened");
 
         let mut reader = ReaderBuilder::new()
             .delimiter(b',')
@@ -154,7 +154,7 @@ impl Iterator for Input {
                     continue;
                 }
             };
-            trace!(target: "payengine", record = ?rec, "Record");
+            trace!(record = ?rec, "record parsed");
 
             match rec.into_transaction() {
                 Ok(transaction) => return Some(transaction),

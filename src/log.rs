@@ -2,6 +2,7 @@ use tracing_subscriber::EnvFilter;
 
 pub fn setup_log() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
     // Logs go to stderr: stdout is reserved for the output CSV.
     let fmt = tracing_subscriber::fmt()
         .with_env_filter(filter)

@@ -3,5 +3,5 @@ source: tests/e2e.rs
 ---
 exit status: 0
 
-TRACE payengine: Input file input="tests/ok/empty/header_only.csv"
+TRACE payengine::input: input file opened path="tests/ok/empty/header_only.csv"
 client,available,held,total,locked

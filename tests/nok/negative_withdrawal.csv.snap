@@ -3,9 +3,9 @@ source: tests/e2e.rs
 ---
 exit status: 0
 
-TRACE payengine: Input file input="tests/nok/negative_withdrawal.csv"
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10.0) }
-TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 1, tx: 2, amount: Some(-5.0) }
+TRACE payengine::input: input file opened path="tests/nok/negative_withdrawal.csv"
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10.0) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Withdrawal, client: 1, tx: 2, amount: Some(-5.0) }
 Error: withdrawal `amount` must not be negative
    ╭─[ tests/nok/negative_withdrawal.csv:3:19 ]
    │

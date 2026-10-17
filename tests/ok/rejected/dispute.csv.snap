@@ -3,10 +3,11 @@ source: tests/e2e.rs
 ---
 exit status: 0
 
-TRACE payengine: Input file input="tests/ok/rejected/dispute.csv"
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(1.0) }
-TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 1, tx: 2, amount: Some(2.0) }
-TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 2, amount: None }
- WARN payengine::engine: Cannot dispute a rejected tx txid=2
+TRACE payengine::input: input file opened path="tests/ok/rejected/dispute.csv"
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(1.0) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Withdrawal, client: 1, tx: 2, amount: Some(2.0) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Dispute, client: 1, tx: 2, amount: None }
+ WARN payengine::engine: withdrawal ignored: insufficient available funds client=1 tx=2
+ WARN payengine::engine: dispute ignored: tx was rejected client=1 tx=2
 client,available,held,total,locked
 1,1,0,1,false

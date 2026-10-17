@@ -3,14 +3,14 @@ source: tests/e2e.rs
 ---
 exit status: 0
 
-TRACE payengine: Input file input="tests/ok/decimal/single_deposit_per_scale.csv"
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 2, tx: 2, amount: Some(1.01) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 3, tx: 3, amount: Some(1.001) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 4, tx: 4, amount: Some(1.0001) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 5, tx: 5, amount: Some(1.00001) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 6, tx: 6, amount: Some(1.0000000001) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 7, tx: 7, amount: Some(0.12345678) }
+TRACE payengine::input: input file opened path="tests/ok/decimal/single_deposit_per_scale.csv"
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 2, tx: 2, amount: Some(1.01) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 3, tx: 3, amount: Some(1.001) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 4, tx: 4, amount: Some(1.0001) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 5, tx: 5, amount: Some(1.00001) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 6, tx: 6, amount: Some(1.0000000001) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 7, tx: 7, amount: Some(0.12345678) }
 client,available,held,total,locked
 1,10,0,10,false
 2,1.01,0,1.01,false

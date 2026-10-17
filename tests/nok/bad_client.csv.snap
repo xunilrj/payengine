@@ -3,7 +3,7 @@ source: tests/e2e.rs
 ---
 exit status: 0
 
-TRACE payengine: Input file input="tests/nok/bad_client.csv"
+TRACE payengine::input: input file opened path="tests/nok/bad_client.csv"
 Error: field 1: invalid digit found in string
    ╭─[ tests/nok/bad_client.csv:2:10 ]
    │

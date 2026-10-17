@@ -10,17 +10,17 @@ client,available,held,total,locked
 2,0,0,0,true
 3,0.75,0,0.75,false
 --- stderr ---
-TRACE payengine: Input file input="target/e2e/tests/nok/messy.csv"
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10.0) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 2, tx: 2, amount: Some(5.5000) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 3, tx: 3, amount: Some(1) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 4, amount: Some(0.5) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 5, amount: Some(2) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 6, amount: Some(1.0) }
-TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
-TRACE payengine: Record record=InputCsv { ty: Resolve, client: 1, tx: 1, amount: None }
-TRACE payengine: Record record=InputCsv { ty: Dispute, client: 2, tx: 2, amount: Some(999) }
-TRACE payengine: Record record=InputCsv { ty: Chargeback, client: 2, tx: 2, amount: None }
+TRACE payengine::input: input file opened path="target/e2e/tests/nok/messy.csv"
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10.0) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 2, tx: 2, amount: Some(5.5000) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 3, tx: 3, amount: Some(1) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 4, amount: Some(0.5) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 5, amount: Some(2) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 6, amount: Some(1.0) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
+TRACE payengine::input: record parsed record=InputCsv { ty: Resolve, client: 1, tx: 1, amount: None }
+TRACE payengine::input: record parsed record=InputCsv { ty: Dispute, client: 2, tx: 2, amount: Some(999) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Chargeback, client: 2, tx: 2, amount: None }
 Error: expected at most 4 fields, found 5
     ╭─[ target/e2e/tests/nok/messy.csv:13:1 ]
     │
@@ -28,7 +28,7 @@ Error: expected at most 4 fields, found 5
     │ ────────────┬────────────  
     │             ╰────────────── this record
 ────╯
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 8, amount: None }
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 8, amount: None }
 Error: deposit requires an `amount`
     ╭─[ target/e2e/tests/nok/messy.csv:14:1 ]
     │
@@ -64,5 +64,5 @@ Error: unknown variant ``, expected one of `deposit`, `withdrawal`, `dispute`, `
     │    │ 
     │    ╰─ type
 ────╯
-TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 3, tx: 11, amount: Some(0.25) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Withdrawal, client: 3, tx: 11, amount: Some(0.25) }
 warning: skipped 6 invalid input row(s)

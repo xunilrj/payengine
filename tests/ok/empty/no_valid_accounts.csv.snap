@@ -3,8 +3,8 @@ source: tests/e2e.rs
 ---
 exit status: 0
 
-TRACE payengine: Input file input="tests/ok/empty/no_valid_accounts.csv"
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(-5) }
+TRACE payengine::input: input file opened path="tests/ok/empty/no_valid_accounts.csv"
+TRACE payengine::input: record parsed record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(-5) }
 Error: deposit `amount` must not be negative
    ╭─[ tests/ok/empty/no_valid_accounts.csv:2:13 ]
    │
@@ -12,6 +12,7 @@ Error: deposit `amount` must not be negative
    │             ─┬  
    │              ╰── amount
 ───╯
-TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 2, tx: 2, amount: Some(3) }
+TRACE payengine::input: record parsed record=InputCsv { ty: Withdrawal, client: 2, tx: 2, amount: Some(3) }
+ WARN payengine::engine: withdrawal ignored: insufficient available funds client=2 tx=2
 warning: skipped 1 invalid input row(s)
 client,available,held,total,locked
