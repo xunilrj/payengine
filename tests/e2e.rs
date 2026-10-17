@@ -2,8 +2,13 @@ use insta::{Settings, assert_snapshot};
 use libtest_mimic::{Arguments, Failed, Trial};
 use serde::Deserialize;
 use std::{
-    collections::HashMap, ffi::OsString, path::PathBuf, process::Output, str::FromStr as _,
-    sync::Once, time::Duration,
+    collections::HashMap,
+    ffi::OsString,
+    path::{Path, PathBuf},
+    process::Output,
+    str::FromStr as _,
+    sync::Once,
+    time::Duration,
 };
 
 #[derive(Deserialize)]
@@ -70,7 +75,7 @@ fn run_exe(
         panic!("test timeout");
     };
 
-    let stdout = str::from_utf8(stdout).unwrap();
+    let stdout = std::str::from_utf8(stdout).unwrap();
 
     let mut snapshot = format!("{status}\n");
     if assert_stdout_is_csv {
@@ -95,7 +100,7 @@ fn run_exe(
         snapshot.push_str("--- stdout ---\n");
         snapshot.push_str(stdout);
         snapshot.push_str("--- stderr ---\n");
-        snapshot.push_str(str::from_utf8(stderr).unwrap());
+        snapshot.push_str(std::str::from_utf8(stderr).unwrap());
     }
     snapshot
 }
@@ -123,10 +128,7 @@ fn main() {
     let mut tests = vec![];
 
     for pattern in ["tests/**/*.csv", "tests/**/*.toml"] {
-        let mut iter = glob::glob(pattern)
-            .expect("Failed to read glob pattern")
-            .into_iter();
-        while let Some(entry) = iter.next() {
+        for entry in glob::glob(pattern).expect("Failed to read glob pattern") {
             match entry {
                 Ok(path) => {
                     let test_name = path.display().to_string();
@@ -189,8 +191,8 @@ fn run_toml(path: PathBuf) -> Result<(), Failed> {
     Ok(())
 }
 
-fn assert_snapshot_for(path: &PathBuf, output: String) {
-    let snapshot_name = path.file_name().unwrap().display().to_string();
+fn assert_snapshot_for(path: &Path, output: String) {
+    let snapshot_name = path.file_name().unwrap().to_string_lossy().into_owned();
 
     let mut snapshot_path = path.parent().unwrap().components();
     snapshot_path.next();

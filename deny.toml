@@ -1,0 +1,23 @@
+# cargo-deny configuration, used by `just ci`.
+
+[advisories]
+# RustSec advisory database: vulnerable, unmaintained and yanked crates.
+unmaintained = "all"
+yanked = "deny"
+
+[licenses]
+# Permissive licenses only: the ones the dependency tree uses today.
+allow = ["Apache-2.0", "MIT", "BSL-1.0", "Unicode-3.0", "Unlicense", "Zlib"]
+confidence-threshold = 0.9
+
+[licenses.private]
+# payengine itself is not published.
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

@@ -3,6 +3,7 @@ name = "payengine"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
+publish = false
 
 [dependencies]
 anyhow = "1.0.104"
@@ -10,7 +11,7 @@ ariadne = "0.6.0"
 csv = "1.4.0"
 flume = "0.12.0"
 foldhash = "0.2.0"
-rust_decimal = { version = "1.43.0", features = ["serde", "macros", "serde-str"] }
+rust_decimal = { version = "1.43.0", features = ["serde", "macros"] }
 serde = { version = "1.0.229", features = ["derive"] }
 tokio = { version = "1.53.3", features = ["rt-multi-thread"] }
 tracing = "0.1.44"

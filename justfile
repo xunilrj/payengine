@@ -87,3 +87,16 @@ profile-cli rows="10000000":
     RUST_LOG=error samply record --save-only -o "$profile" \
         target/profiling/payengine "$input" > /dev/null
     echo "To see run: samply load $profile"
+
+# The checks a CI runs: formatting, clippy with warnings as errors, tests,
+# documentation, and a dependency audit (vulnerabilities, licenses, sources).
+# Builds with the committed Cargo.lock. Installs cargo-deny if missing.
+ci:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v cargo-deny >/dev/null || cargo install --locked cargo-deny
+    cargo fmt --all --check
+    cargo clippy --all-targets --locked -- -D warnings
+    cargo test --locked
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --locked
+    cargo deny check

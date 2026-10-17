@@ -1,0 +1,12 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine::input: input file opened path="tests/ok/basic/capitalized_header.csv"
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 1, amount: 1.5 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 2, tx: 2, amount: 2.0 }
+TRACE payengine::sharded: transaction parsed transaction=Withdrawal { client: 1, tx: 3, amount: 0.5 }
+client,available,held,total,locked
+1,1,0,1,false
+2,2,0,2,false

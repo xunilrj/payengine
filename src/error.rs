@@ -71,7 +71,7 @@ impl CsvErrors {
             text
         } else {
             let mut s = String::with_capacity(pad + text.len());
-            s.extend(std::iter::repeat('\n').take(pad));
+            s.extend(std::iter::repeat_n('\n', pad));
             s.push_str(&text);
             s
         };

@@ -86,7 +86,7 @@ impl Input {
         let column = |name: &str| {
             headers
                 .iter()
-                .position(|h| h.trim_ascii() == name.as_bytes())
+                .position(|h| h.trim_ascii().eq_ignore_ascii_case(name.as_bytes()))
         };
         let required =
             |name: &str| column(name).with_context(|| format!("header row has no `{name}` column"));
