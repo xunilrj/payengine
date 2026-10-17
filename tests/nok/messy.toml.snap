@@ -1,0 +1,68 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+assert_stdout_is_csv: ok
+
+--- stdout ---
+client,available,held,total,locked
+1,13.5,0,13.5,false
+2,0.0,0.0,0.0,true
+3,0.75,0,0.75,false
+--- stderr ---
+TRACE payengine: Input file input="target/e2e/tests/nok/messy.csv"
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(10) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 2, tx: 2, amount: Some(5.5) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 3, tx: 3, amount: Some(1) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 4, amount: Some(0.5) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 5, amount: Some(2) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 6, amount: Some(1) }
+TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
+TRACE payengine: Record record=InputCsv { ty: Resolve, client: 1, tx: 1, amount: None }
+TRACE payengine: Record record=InputCsv { ty: Dispute, client: 2, tx: 2, amount: Some(999) }
+TRACE payengine: Record record=InputCsv { ty: Chargeback, client: 2, tx: 2, amount: None }
+Error: expected at most 4 fields, found 5
+    ╭─[ target/e2e/tests/nok/messy.csv:13:1 ]
+    │
+ 13 │ withdrawal,3,7,0.25,extra
+    │ ────────────┬────────────  
+    │             ╰────────────── this record
+────╯
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 8, amount: None }
+Error: deposit requires an `amount`
+    ╭─[ target/e2e/tests/nok/messy.csv:14:1 ]
+    │
+ 14 │ deposit,1,8
+    │ ─────┬─────  
+    │      ╰─────── amount
+────╯
+Error: expected field, but got end of row
+    ╭─[ target/e2e/tests/nok/messy.csv:15:1 ]
+    │
+ 15 │ dispute,1
+    │ ────┬────  
+    │     ╰────── tx
+────╯
+Error: unknown variant `Deposit`, expected one of `deposit`, `withdrawal`, `dispute`, `resolve`, `chargeback`
+    ╭─[ target/e2e/tests/nok/messy.csv:16:1 ]
+    │
+ 16 │ Deposit,1,9,1.0
+    │ ───┬───  
+    │    ╰───── type
+────╯
+Error: expected at most 4 fields, found 5
+    ╭─[ target/e2e/tests/nok/messy.csv:17:1 ]
+    │
+ 17 │ deposit,1,10,1,0
+    │ ────────┬───────  
+    │         ╰───────── this record
+────╯
+Error: unknown variant ``, expected one of `deposit`, `withdrawal`, `dispute`, `resolve`, `chargeback`
+    ╭─[ target/e2e/tests/nok/messy.csv:18:4 ]
+    │
+ 18 │ 
+    │    │ 
+    │    ╰─ type
+────╯
+TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 3, tx: 11, amount: Some(0.25) }
+warning: skipped 6 invalid input row(s)
