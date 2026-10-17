@@ -121,3 +121,11 @@ I am reading the second phrase as: "you should be able to output at least 4 digi
 I had the decide what to do with amount equals zero. It seems a trivial case, but what happens if this transaction is disputed. I decide to let these transaction exist and treat them as normal.
 
 It seems strange a deposit of zero be disputed. And because of that  the account being locked. But with the "bank mentality", if is strange it is better to play safe and let a human look at it ad see what is happening.
+
+## Improving error handling
+
+Now I am using anyhow and removing all unwraps.
+I have also removed all unwrap/panic code from "production".
+
+There are two `.expect()` but they will never panic as they are checked beforehand.
+I tried to improve `InputCsv` to be an enum and make "None" impossible to represent, but the `csv` crate does not support this kind of serialization. That could be a strong argument to use another better crate, or to parse CSV manually. I will not do this for this test.

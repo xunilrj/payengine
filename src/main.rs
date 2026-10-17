@@ -59,22 +59,30 @@ fn write_output(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
 
 fn process_input(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
     let input = Input::from_args()?;
+
     for transaction in input {
         let _ = match transaction.ty {
             TransactionType::Deposit => engine.deposit(
                 transaction.tx,
                 transaction.client,
-                transaction.amount.expect("validate guarantees amount present for deposit"),
+                // SAFETY: Validation garantees amount is Some
+                transaction
+                    .amount
+                    .expect("unexpected amount = None on deposit"),
             ),
             TransactionType::Withdrawal => engine.withdrawal(
                 transaction.tx,
                 transaction.client,
-                transaction.amount.expect("validate guarantees amount present for withdrawal"),
+                // SAFETY: Validation garantees amount is Some
+                transaction
+                    .amount
+                    .expect("unexpected amount = None on withdrawal"),
             ),
             TransactionType::Dispute => engine.dispute(transaction.tx, transaction.client),
             TransactionType::Resolve => engine.resolve(transaction.tx, transaction.client),
             TransactionType::Chargeback => engine.chargeback(transaction.tx, transaction.client),
         };
     }
+
     Ok(())
 }
