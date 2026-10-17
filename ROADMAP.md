@@ -85,10 +85,13 @@ mis-scoring against, the spec.
 - [ ] **Extra CLI arguments are silently ignored** — spec says the input file is "the
   first and only argument". Consider erroring on extra args (one-line change, removes
   an implicit assumption).
-- [ ] **All transactions are retained in memory** (`BTreeMap<u32, TxState>`) for
-  dispute lookups. Deliberate trade-off documented in the README ("Frozen Account"
-  section). The spec's u32 hint suggests a dense `Vec<Option<TxState>>` alternative;
-  optional, only if you want the efficiency talking point.
+- [x] **All transactions are retained in memory** (`BTreeMap<u32, TxState>`) for
+  dispute lookups. The spec's u32 hint suggests a dense `Vec<Option<TxState>>`
+  alternative; optional, only if you want the efficiency talking point.
+  Done: rejected on purpose. A dense `Vec` would allocate ~2^32 slots (~90+ GB) for
+  sparse ids — strictly worse. The real fix (pre-scan pass, O(disputes) memory) was
+  considered and rejected as "too fake": a real engine consumes an infinite stream,
+  which cannot be pre-scanned. Documented in README "Pre-scan pass" devlog section.
 
 ## Resolved in review
 

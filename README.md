@@ -119,11 +119,11 @@ It was not asked but I decided to return more user friendly errors, because it i
 
 Now I changed user id and transaxtion id to the suggested types. That enticed me to consider changing the accounts `BTreeMap` to a simple pre allocated `Vec`. `O(1)` access, but this is far from being the bottleneck and will almost ways use more memory. I decided to keep the `BTreeMap`: it is simpler, sorted output for free, and memory scales with the number of clients seen, not with the whole `u16` range.
 
-I have also considered what to do with the transaction map. Today we are storing all of them, when we just need transactions in dispute. Huge wasted memory. Any solution would need a lazy way to restore a transaction when a dispute start.
+I have also considered what to do with the transaction map. Today we are storing all of them, when we need them in memory only for dispute. Huge wasted memory. 
 
-All possibilities seems to complex for a toy project like this. It can scary the reviewer. 
-
-I decided to not pursue this, although I would for this to be memory bounded (ideal for containers etc.).
+I consider the following solutions:
+- a lazy way to restore a transaction when a dispute starts. That would be the best option in a realistic scenario. Would keep memory bounded and very low, as I imagine disputes are not very common. This seems too complex for a toy project like this. It can scary the reviewer. I decided to not pursue this, although I would for this to be memory bounded (ideal for containers etc.).
+- Another option is to pre-pass the CSV and save all disputed txs beforehand and only keep them in memory. This will generate a VERY good demo, but it is not realistic, because a real engine would work with an infinite stream of transactions, that cannot be pre-processed. This seems to fake and I decided to ignore it.
 
 ## Frozen Account
 
