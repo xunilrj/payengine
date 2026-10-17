@@ -47,7 +47,7 @@ snapshots cannot tell the two streams apart.
 filter to `off`/`error` so ANSI-coloured warnings don't spam the console. Snapshot
 stdout and stderr separately so a regression can't hide again.
 
-### 2. dispute/resolve/chargeback rows with 3 columns are rejected
+### 2. ~~dispute/resolve/chargeback rows with 3 columns are rejected~~ (FIXED: `flexible(true)` plus an explicit too-many-fields check; see `tests/nok/messy.csv`)
 
 The csv reader is not `flexible`, so a row like `dispute,1,1` (no trailing
 comma) fails with *"found record with 3 fields, but the previous record has 4

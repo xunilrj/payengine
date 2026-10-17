@@ -71,6 +71,7 @@ impl Input {
         let path = args
             .nth(1)
             .context("missing input file argument — usage: payengine <input.csv>")?;
+
         // The spec says the input file is the first and only argument, so
         // anything more is a usage error rather than something to ignore.
         if let Some(extra) = args.next() {
@@ -83,6 +84,7 @@ impl Input {
             .has_headers(true)
             .trim(Trim::All)
             .terminator(Terminator::CRLF)
+            .flexible(true)
             .from_path(&path)
             .with_context(|| format!("failed to open input file {path:?}"))?;
         let headers = reader
@@ -115,6 +117,18 @@ impl Iterator for Input {
                 None => return None,
             };
             let pos = record.position().cloned();
+
+            // Deal with more columns than expected
+            if record.len() > self.headers.len() {
+                let msg = format!(
+                    "expected at most {} fields, found {}",
+                    self.headers.len(),
+                    record.len()
+                );
+                self.errs.report(pos.as_ref(), None, msg);
+                continue;
+            }
+
             let rec = match record.deserialize::<InputCsv>(Some(&self.headers)) {
                 Ok(r) => r,
                 Err(e) => {
@@ -129,10 +143,12 @@ impl Iterator for Input {
             };
             trace!(target: "payengine", record = ?rec, "Record");
 
+            // Check values are valid
             if let Err(err) = rec.validate() {
                 self.errs.report(pos.as_ref(), Some(err.field), err.msg);
                 continue;
             }
+
             return Some(rec);
         }
     }

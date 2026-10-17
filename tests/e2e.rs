@@ -10,6 +10,11 @@ use std::{
 struct TestSpec {
     args: Option<Vec<String>>,
     env: Option<HashMap<String, String>>,
+    csv: Option<String>,
+    /// Merge stderr into stdout (the default). When `false`, both streams are
+    /// snapshotted separately
+    merge_output: Option<bool>,
+    assert_stdout_is_csv: Option<bool>,
 }
 
 static EXE_COMPILATION: Once = Once::new();
@@ -26,6 +31,8 @@ fn compile_exe() {
 fn run_exe(
     args: impl IntoIterator<Item = impl Into<OsString>>,
     env_overrides: HashMap<String, String>,
+    merge_output: bool,
+    assert_stdout_is_csv: bool,
 ) -> String {
     let cargo_manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let repo_root = PathBuf::from_str(&cargo_manifest_dir)
@@ -42,21 +49,67 @@ fn run_exe(
         cmd = cmd.env(k, v);
     }
 
-    let o = cmd
-        .stderr_to_stdout()
-        .stdout_capture()
-        .unchecked()
-        .start()
-        .unwrap();
+    let cmd = if merge_output {
+        cmd.stderr_to_stdout()
+    } else {
+        cmd.stderr_capture()
+    };
+    let o = cmd.stdout_capture().unchecked().start().unwrap();
 
-    let Some(Output { status, stdout, .. }) = o.wait_timeout(Duration::from_secs(30)).unwrap()
+    let Some(Output {
+        status,
+        stdout,
+        stderr,
+    }) = o.wait_timeout(Duration::from_secs(30)).unwrap()
     else {
         panic!("test timeout");
     };
 
-    let mut snapshot = format!("{status}\n\n");
-    snapshot.push_str(str::from_utf8(&stdout).unwrap());
+    let stdout = str::from_utf8(stdout).unwrap();
+
+    let mut snapshot = format!("{status}\n");
+    if assert_stdout_is_csv {
+        let check = if status.success() {
+            check_pure_csv(stdout)
+        } else if stdout.is_empty() {
+            Ok(())
+        } else {
+            Err("stdout must be empty on failure".to_string())
+        };
+        match check {
+            Ok(()) => snapshot.push_str("assert_stdout_is_csv: ok\n"),
+            Err(e) => snapshot.push_str(&format!("assert_stdout_is_csv: FAILED: {e}\n")),
+        }
+    }
+
+    snapshot.push('\n');
+
+    if merge_output {
+        snapshot.push_str(stdout);
+    } else {
+        snapshot.push_str("--- stdout ---\n");
+        snapshot.push_str(stdout);
+        snapshot.push_str("--- stderr ---\n");
+        snapshot.push_str(str::from_utf8(stderr).unwrap());
+    }
     snapshot
+}
+
+fn check_pure_csv(stdout: &str) -> Result<(), String> {
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(stdout.as_bytes());
+    match reader.headers() {
+        Ok(headers) if !headers.is_empty() => {}
+        Ok(_) => return Err("stdout has no CSV header".to_string()),
+        Err(e) => return Err(format!("stdout has an invalid CSV header ({e})")),
+    }
+    for record in reader.records() {
+        if let Err(e) = record {
+            return Err(format!("stdout is not valid CSV ({e})"));
+        }
+    }
+    Ok(())
 }
 
 fn main() {
@@ -91,7 +144,7 @@ fn run_csv(path: PathBuf) -> Result<(), Failed> {
     EXE_COMPILATION.call_once(|| {
         compile_exe();
     });
-    let output = run_exe([path.as_os_str()], HashMap::new());
+    let output = run_exe([path.as_os_str()], HashMap::new(), true, false);
     let output = clean_output(&output);
     assert_snapshot_for(&path, output);
     Ok(())
@@ -103,10 +156,26 @@ fn run_toml(path: PathBuf) -> Result<(), Failed> {
     });
     let content = std::fs::read_to_string(&path).unwrap();
     let spec: TestSpec = toml::from_str(&content).unwrap();
-    let args = spec.args.unwrap_or_default();
     let env = spec.env.unwrap_or_default();
+    let args = match spec.csv {
+        Some(csv) => {
+            // Relative to the repo root (the exe's cwd), so the path shown in
+            // logs and diagnostics is deterministic.
+            let csv_path = PathBuf::from("target/e2e").join(path.with_extension("csv"));
+            std::fs::create_dir_all(csv_path.parent().unwrap()).unwrap();
+            std::fs::write(&csv_path, csv).unwrap();
+            spec.args
+                .unwrap_or_else(|| vec![csv_path.display().to_string()])
+        }
+        None => spec.args.unwrap_or_default(),
+    };
 
-    let output = run_exe(args, env);
+    let output = run_exe(
+        args,
+        env,
+        spec.merge_output.unwrap_or(true),
+        spec.assert_stdout_is_csv.unwrap_or(false),
+    );
     let output = clean_output(&output);
     assert_snapshot_for(&path, output);
     Ok(())
