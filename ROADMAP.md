@@ -66,11 +66,14 @@ mis-scoring against, the spec.
 
 ## Low priority — documented deviations to keep or revisit
 
-- [ ] **Dispute/chargeback of withdrawals** (deposit-centric spec wording): a disputed
+- [x] **Dispute/chargeback of withdrawals** (deposit-centric spec wording): a disputed
   withdrawal only flags the tx (held stays 0), and its chargeback *refunds* to
   `available`, increasing total — contradicting the spec's literal "held and total
   should decrease". Well-argued in the README; keep, but it deserves a bullet in the
   consolidated assumptions section above.
+  Done: covered both in the README "# TLDR" bullet and the "Disputes on withdrawals"
+  devlog section (which explains the deviation from the spec's "total should
+  decrease" wording).
 - [ ] **Dispute can drive `available` negative** when the deposited funds were already
   partially withdrawn (deposit 10, withdraw 8, dispute the deposit → available -8,
   held 10). This follows the spec's formula literally, but no test fixture covers it.
