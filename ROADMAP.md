@@ -61,12 +61,12 @@ Spec (Precision): *"You can assume a precision of four places past the decimal a
 - ✅ The funds check now reads the available balance via `self.accounts.get(&id)` (no entry creation) and only calls `get_account(id)` (which `entry().or_default()`s) once the check passes. A rejected withdrawal on an unknown client records the `Rejected` tx state (so a later dispute is still refused) but creates no account row.
 - Tests: unit test `engine::tests::withdrawal::rejected_on_unknown_client_creates_no_account` (asserts `InsufficientFunds` and that client 1 does not appear in `iter_accounts`). No e2e snapshot test, per scope.
 
-## 8. Guard against duplicate tx ids — TODO (low / defensive)
+## 8. Guard against duplicate tx ids — DONE (low / defensive)
 
-Spec: *"transaction IDs (tx) are globally unique."* A duplicate `deposit` tx id currently credits `available` twice but overwrites the single `TxState`, so the record no longer matches the balance and a later dispute would only reverse one of the two credits. This "can't happen" per the spec, but it silently corrupts state if it does.
+Spec: *"transaction IDs (tx) are globally unique."* A duplicate `deposit` tx id previously credited `available` twice but overwrote the single `TxState`, so the record no longer matched the balance and a later dispute would only reverse one of the two credits. This "can't happen" per the spec, but it silently corrupted state if it did.
 
-- ✅ On `deposit`/`withdrawal`, if `txid` already exists in `txs_amounts`, emit a `WARN` and ignore the duplicate (no balance change, no overwrite). This makes the invariant self-enforcing rather than assumed.
-- Tests: `tests/ok/duplicate_tx/{deposit, withdrawal}.csv`.
+- ✅ On `deposit`/`withdrawal`, if `txid` already exists in `txs_amounts`, emit a `WARN` (`"duplicate tx id; <op> ignored"`) and return `Err(EngineError::DuplicateTx)` — no balance change, no `TxState` overwrite. The check runs after the frozen and negative guards (those stay higher priority) but before any balance mutation, so the original tx state is preserved exactly. Uniqueness is enforced across types too: reusing a deposit's tx id for a withdrawal (or vice versa) is rejected.
+- Tests: unit tests in `engine::tests::duplicate_tx` — `duplicate_deposit_is_ignored`, `duplicate_deposit_preserves_original_tx_state` (a duplicate with a *different* amount must not overwrite; a later dispute still reverses the original), `duplicate_withdrawal_is_ignored`, and `tx_id_is_unique_across_types`. No e2e snapshot tests, per scope.
 
 ## Notes / accepted tradeoffs (no action)
 

@@ -13,6 +13,7 @@ pub enum EngineError {
     AlreadyInDispute,
     NotInDispute,
     TxRejected,
+    DuplicateTx,
 }
 
 #[derive(Clone, Copy)]
@@ -58,6 +59,10 @@ impl PaymentsEngine {
             warn!(client = id, txid = txid, "negative amount; deposit ignored");
             return Err(EngineError::NegativeAmount);
         }
+        if self.txs_amounts.contains_key(&txid) {
+            warn!(client = id, txid = txid, "duplicate tx id; deposit ignored");
+            return Err(EngineError::DuplicateTx);
+        }
         let account = self.get_account(id);
         account.available += amount;
 
@@ -89,6 +94,14 @@ impl PaymentsEngine {
                 "negative amount; withdrawal ignored"
             );
             return Err(EngineError::NegativeAmount);
+        }
+        if self.txs_amounts.contains_key(&txid) {
+            warn!(
+                client = id,
+                txid = txid,
+                "duplicate tx id; withdrawal ignored"
+            );
+            return Err(EngineError::DuplicateTx);
         }
 
         // Read the available balance without creating an account
@@ -537,6 +550,51 @@ mod tests {
             assert_eq!(e.dispute(1, 1), Err(EngineError::AccountFrozen));
             assert_eq!(e.resolve(1, 1), Err(EngineError::AccountFrozen));
             assert_eq!(e.chargeback(1, 1), Err(EngineError::AccountFrozen));
+        }
+    }
+
+    mod duplicate_tx {
+        use super::*;
+
+        #[test]
+        fn duplicate_deposit_is_ignored() {
+            let mut e = PaymentsEngine::default();
+            assert!(e.deposit(1, 1, dec!(10)).is_ok());
+            assert_eq!(e.deposit(1, 1, dec!(10)), Err(EngineError::DuplicateTx));
+            // Credited once, not twice.
+            assert_eq!(e.get_account(1).available, dec!(10));
+        }
+
+        #[test]
+        fn duplicate_deposit_preserves_original_tx_state() {
+            let mut e = PaymentsEngine::default();
+            assert!(e.deposit(1, 1, dec!(10)).is_ok());
+            // A duplicate with a different amount must not overwrite the tx.
+            assert_eq!(e.deposit(1, 1, dec!(99)), Err(EngineError::DuplicateTx));
+            // Dispute reverses the original 10, not 99.
+            assert!(e.dispute(1, 1).is_ok());
+            let a = e.get_account(1);
+            assert_eq!(a.available, dec!(0));
+            assert_eq!(a.held, dec!(10));
+        }
+
+        #[test]
+        fn duplicate_withdrawal_is_ignored() {
+            let mut e = PaymentsEngine::default();
+            e.deposit(1, 1, dec!(10)).unwrap();
+            assert!(e.withdrawal(2, 1, dec!(4)).is_ok());
+            assert_eq!(e.withdrawal(2, 1, dec!(4)), Err(EngineError::DuplicateTx));
+            // Debited once: 10 - 4 = 6, not 2.
+            assert_eq!(e.get_account(1).available, dec!(6));
+        }
+
+        #[test]
+        fn tx_id_is_unique_across_types() {
+            let mut e = PaymentsEngine::default();
+            assert!(e.deposit(1, 1, dec!(10)).is_ok());
+            // Reusing a deposit's tx id for a withdrawal is still a duplicate.
+            assert_eq!(e.withdrawal(1, 1, dec!(4)), Err(EngineError::DuplicateTx));
+            assert_eq!(e.get_account(1).available, dec!(10));
         }
     }
 }
