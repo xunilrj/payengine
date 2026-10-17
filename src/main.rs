@@ -66,7 +66,7 @@ fn process_input(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
             TransactionType::Deposit => engine.deposit(
                 transaction.tx,
                 transaction.client,
-                // SAFETY: Validation garantees amount is Some
+                // SAFETY: Validation guarantees amount is Some
                 transaction
                     .amount
                     .expect("unexpected amount = None on deposit"),
@@ -74,7 +74,7 @@ fn process_input(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
             TransactionType::Withdrawal => engine.withdrawal(
                 transaction.tx,
                 transaction.client,
-                // SAFETY: Validation garantees amount is Some
+                // SAFETY: Validation guarantees amount is Some
                 transaction
                     .amount
                     .expect("unexpected amount = None on withdrawal"),

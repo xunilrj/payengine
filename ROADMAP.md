@@ -148,7 +148,7 @@ may disagree with them:
   enforced by `InputCsv::validate`, but the type system doesn't enforce it. The
   README discusses this. You could instead convert to a `Transaction` enum after
   validation, which doesn't need serde support.
-- **Typos in comments/README:** "garantees", "nothign", "agains", "callign",
+- ~~**Typos in comments/README:**~~ (FIXED) "garantees", "nothign", "agains", "callign",
   "enterily", "frozend", "wit hthe", "chargerback", "transaxtion".
 - **ROADMAP.md tracked in history:** the README explains it's intentional. Remember
   to remove it, or keep it deliberately, before submitting.
