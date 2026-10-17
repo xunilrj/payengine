@@ -1,0 +1,7 @@
+# PAYENGINE_SHARDS=0 => no shard could process anything, so it must be
+# rejected with a clear error and a non-zero exit.
+args = ["tests/ok/basic/simple.csv"]
+shards = 0
+
+[env]
+RUST_LOG = "off"

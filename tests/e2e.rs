@@ -15,6 +15,8 @@ struct TestSpec {
     /// snapshotted separately
     merge_output: Option<bool>,
     assert_stdout_is_csv: Option<bool>,
+    /// Number of shards (`PAYENGINE_SHARDS`). Defaults to 1.
+    shards: Option<usize>,
 }
 
 static EXE_COMPILATION: Once = Once::new();
@@ -45,9 +47,12 @@ fn run_exe(
     for (k, v) in &env_overrides {
         cmd = cmd.env(k, v);
     }
-    for (k, v) in [("RUST_LOG", "trace"), ("RUST_LOG_NO_TIMESTAMP", "1")] {
-        cmd = cmd.env(k, v);
-    }
+
+    let cmd = cmd
+        .env("RUST_LOG", "trace")
+        .env("RUST_LOG_NO_TIMESTAMP", "1")
+        .env("PAYENGINE_SHARDS", "1")
+        .env("PAYENGINE_SORT_OUTPUT", "1");
 
     let cmd = if merge_output {
         cmd.stderr_to_stdout()
@@ -155,8 +160,11 @@ fn run_toml(path: PathBuf) -> Result<(), Failed> {
         compile_exe();
     });
     let content = std::fs::read_to_string(&path).unwrap();
-    let spec: TestSpec = toml::from_str(&content).unwrap();
-    let env = spec.env.unwrap_or_default();
+    let spec = toml::from_str::<TestSpec>(&content).unwrap();
+    let mut env = spec.env.unwrap_or_default();
+    if let Some(shards) = spec.shards {
+        env.insert("PAYENGINE_SHARDS".to_string(), shards.to_string());
+    }
     let args = match spec.csv {
         Some(csv) => {
             // Relative to the repo root (the exe's cwd), so the path shown in

@@ -1,0 +1,6 @@
+---
+source: tests/e2e.rs
+---
+exit status: 1
+
+PAYENGINE_SHARDS must be a positive integer, got "0"

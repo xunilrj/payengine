@@ -6,6 +6,7 @@ use tracing::trace;
 
 use crate::error::{CsvErrors, culprit_field};
 use anyhow::{Context, bail};
+use payengine::engine::Transaction;
 
 #[derive(Debug, Deserialize)]
 pub enum TransactionType {
@@ -36,25 +37,37 @@ struct FieldError {
 }
 
 impl InputCsv {
-    /// Extra validation for the deserialized transaction. Done here
-    /// to enable more user friendly error on the terminal
-    fn validate(&self) -> Result<(), FieldError> {
-        let name = match self.ty {
-            TransactionType::Deposit => "deposit",
-            TransactionType::Withdrawal => "withdrawal",
-            _ => return Ok(()),
-        };
-        match self.amount {
-            None => Err(FieldError {
-                field: 3,
-                msg: format!("{name} requires an `amount`"),
-            }),
-            Some(a) if a.is_sign_negative() => Err(FieldError {
-                field: 3,
-                msg: format!("{name} `amount` must not be negative"),
-            }),
-            Some(_) => Ok(()),
-        }
+    fn into_transaction(self) -> Result<Transaction, FieldError> {
+        let (client, tx) = (self.client, self.tx);
+        Ok(match self.ty {
+            TransactionType::Deposit => Transaction::Deposit {
+                client,
+                tx,
+                amount: required_amount(self.amount, "deposit")?,
+            },
+            TransactionType::Withdrawal => Transaction::Withdrawal {
+                client,
+                tx,
+                amount: required_amount(self.amount, "withdrawal")?,
+            },
+            TransactionType::Dispute => Transaction::Dispute { client, tx },
+            TransactionType::Resolve => Transaction::Resolve { client, tx },
+            TransactionType::Chargeback => Transaction::Chargeback { client, tx },
+        })
+    }
+}
+
+fn required_amount(amount: Option<Decimal>, name: &str) -> Result<Decimal, FieldError> {
+    match amount {
+        None => Err(FieldError {
+            field: 3,
+            msg: format!("{name} requires an `amount`"),
+        }),
+        Some(a) if a.is_sign_negative() => Err(FieldError {
+            field: 3,
+            msg: format!("{name} `amount` must not be negative"),
+        }),
+        Some(a) => Ok(a),
     }
 }
 
@@ -104,9 +117,9 @@ impl Input {
 }
 
 impl Iterator for Input {
-    type Item = InputCsv;
+    type Item = Transaction;
 
-    fn next(&mut self) -> Option<InputCsv> {
+    fn next(&mut self) -> Option<Transaction> {
         loop {
             let record = match self.rdr.byte_records().next() {
                 Some(Ok(r)) => r,
@@ -143,13 +156,10 @@ impl Iterator for Input {
             };
             trace!(target: "payengine", record = ?rec, "Record");
 
-            // Check values are valid
-            if let Err(err) = rec.validate() {
-                self.errs.report(pos.as_ref(), Some(err.field), err.msg);
-                continue;
+            match rec.into_transaction() {
+                Ok(transaction) => return Some(transaction),
+                Err(err) => self.errs.report(pos.as_ref(), Some(err.field), err.msg),
             }
-
-            return Some(rec);
         }
     }
 }

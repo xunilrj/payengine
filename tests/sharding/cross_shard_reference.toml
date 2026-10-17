@@ -1,0 +1,19 @@
+# A dispute, resolve or chargeback naming the wrong client is routed to that
+# client's shard, which never saw the tx: it is ignored, exactly like the
+# client mismatch a single engine reports. No account is created for the
+# wrong clients, and the real owner can still dispute.
+#
+# Expected: only client 1, with 10 held: 1 -> 0 / 10 / 10 unlocked.
+shards = 4
+
+csv = """
+type,client,tx,amount
+deposit,1,1,10
+dispute,2,1,
+resolve,3,1,
+chargeback,2,1,
+dispute,1,1,
+"""
+
+[env]
+RUST_LOG = "off"

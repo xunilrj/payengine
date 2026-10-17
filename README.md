@@ -249,3 +249,69 @@ size       peak RSS
 Interesting to see but `Dashmap` give us nothing here as the code to be multi-thread safe is much more complex than that. And we have a lot of check-then-act races.
 
 I am going to stick with `HashMap` for now.
+
+## Shards
+
+Now I am trying a ramp up of the architecture to support "What
+if your code was bundled in a server, and these CSVs came from
+thousands of concurrent TCP streams" of the spec.
+
+What I am doing is keeping the engine itself single-threaded but sharding by client id.
+A simple benchmark is very disheartening.
+
+```
+┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
+│        Benchmark        │     Throughput     │ Median ns/op │ P95 ns/op  │     Change     │
+╞═════════════════════════╤════════════════════╤══════════════╤════════════╤════════════════╡
+│shards-1                 │          2.34 Mtx/s│        429.79│      430.12│               -│
+│shards-2                 │          4.92 Mtx/s│        200.16│      208.60│               -│
+│shards-4                 │          8.00 Mtx/s│        123.34│      129.78│               -│
+│shards-8                 │          7.30 Mtx/s│        134.79│      141.77│               -│
+└─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
+```
+
+The obvious answer of why, is that the channel is too costly for this example. The obvious solution is to 
+batch before sending. And doing a simple batch we get much better results.
+
+```
+┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
+│        Benchmark        │     Throughput     │ Median ns/op │ P95 ns/op  │     Change     │
+╞═════════════════════════╤════════════════════╤══════════════╤════════════╤════════════════╡
+│shards-1                 │          7.01 Mtx/s│        142.59│      142.89│         +200.0%│
+│shards-2                 │         14.73 Mtx/s│         67.83│       68.34│         +199.4%│
+│shards-4                 │         30.57 Mtx/s│         32.61│       33.39│         +282.1%│
+│shards-8                 │         51.82 Mtx/s│         18.91│       22.97│         +610.3%│
+└─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
+```
+
+We are 7x better with 8 cores. Very near the limit of my machine which only hs 5 performance cores. Wee may gain event more pinning engines into performance cores. But that is too much for this demo.
+
+So instead of making the shared memory protected with `Mutex` or something similar, I am avoiding sharing memory at all, following a more "actor" like approach. This become much complex if there were transaction touching two accounts, but given that we do not have, we can avail this simplicity here.
+
+Anotehr improvement is. We are sorting accounts at the end, and we do not need accounts to be `BTreeMap` any more. Changing it to `HashMap` gives us:
+
+```
+┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
+│        Benchmark        │     Throughput     │ Median ns/op │ P95 ns/op  │     Change     │
+╞═════════════════════════╤════════════════════╤══════════════╤════════════╤════════════════╡
+│shards-1                 │         13.71 Mtx/s│         72.52│       75.65│          +95.6%│
+│shards-2                 │         27.99 Mtx/s│         35.75│       36.34│          +90.1%│
+│shards-4                 │         52.81 Mtx/s│         18.53│       19.98│          +72.8%│
+│shards-8                 │         85.76 Mtx/s│         11.40│       13.61│          +65.5%│
+└─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
+```
+
+Another easy improvement is to use a "faster" hash. Using `foldHash` we get. When we change hash from maps, we
+need to be careful with collisions. In this case both keys would be "internal ids", so would be very hard to case 
+collision attacks.
+
+```
+┌─────────────────────────┬────────────────────┬──────────────┬────────────┬────────────────┐
+│        Benchmark        │     Throughput     │ Median ns/op │ P95 ns/op  │     Change     │
+╞═════════════════════════╤════════════════════╤══════════════╤════════════╤════════════════╡
+│shards-1                 │         25.83 Mtx/s│         38.59│       40.13│           -2.1%│
+│shards-2                 │         55.14 Mtx/s│         18.11│       18.41│           +3.2%│
+│shards-4                 │         96.04 Mtx/s│          9.93│       12.80│             ~0%│
+│shards-8                 │        121.13 Mtx/s│          8.09│        8.97│           -1.2%│
+└─────────────────────────┴────────────────────┴──────────────┴────────────┴────────────────┘
+```

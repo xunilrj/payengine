@@ -1,0 +1,8 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+client,available,held,total,locked
+3,2.5,0,2.5,false
+9,1,0,1,false

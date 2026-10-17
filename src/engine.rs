@@ -1,7 +1,7 @@
 use tracing::warn;
 
 use rust_decimal::Decimal;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineError {
@@ -14,6 +14,46 @@ pub enum EngineError {
     NotInDispute,
     TxRejected,
     DuplicateTx,
+}
+
+/// One validated transaction. Only deposits and withdrawals carry an amount,
+/// so a missing amount cannot be represented.
+#[derive(Debug, Clone, Copy)]
+pub enum Transaction {
+    Deposit {
+        client: u16,
+        tx: u32,
+        amount: Decimal,
+    },
+    Withdrawal {
+        client: u16,
+        tx: u32,
+        amount: Decimal,
+    },
+    Dispute {
+        client: u16,
+        tx: u32,
+    },
+    Resolve {
+        client: u16,
+        tx: u32,
+    },
+    Chargeback {
+        client: u16,
+        tx: u32,
+    },
+}
+
+impl Transaction {
+    pub fn client(&self) -> u16 {
+        match *self {
+            Transaction::Deposit { client, .. }
+            | Transaction::Withdrawal { client, .. }
+            | Transaction::Dispute { client, .. }
+            | Transaction::Resolve { client, .. }
+            | Transaction::Chargeback { client, .. } => client,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -45,11 +85,21 @@ pub struct Account {
 
 #[derive(Default)]
 pub struct PaymentsEngine {
-    accounts: BTreeMap<u16, Account>,
-    txs_amounts: HashMap<u32, TxState>,
+    accounts: HashMap<u16, Account, foldhash::fast::RandomState>,
+    txs_amounts: HashMap<u32, TxState, foldhash::fast::RandomState>,
 }
 
 impl PaymentsEngine {
+    pub fn apply(&mut self, transaction: Transaction) -> Result<(), EngineError> {
+        match transaction {
+            Transaction::Deposit { client, tx, amount } => self.deposit(tx, client, amount),
+            Transaction::Withdrawal { client, tx, amount } => self.withdrawal(tx, client, amount),
+            Transaction::Dispute { client, tx } => self.dispute(tx, client),
+            Transaction::Resolve { client, tx } => self.resolve(tx, client),
+            Transaction::Chargeback { client, tx } => self.chargeback(tx, client),
+        }
+    }
+
     pub fn deposit(&mut self, txid: u32, id: u16, amount: Decimal) -> Result<(), EngineError> {
         if self.is_locked(id) {
             warn!(client = id, txid = txid, "account frozen; deposit ignored");

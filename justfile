@@ -40,10 +40,10 @@ bench-memory sizes="10k 100k 1M 10M 100M":
         *)      flag=-v; pattern='Maximum resident set size'; unit=1024 ;;
     esac
     log=$(mktemp)
-    printf '%-6s %12s\n' size "peak RSS"
+    printf '%-10s %12s\n' bench "peak RSS"
     for size in {{sizes}}; do
         /usr/bin/time "$flag" "$exe" "$size" --bench > /dev/null 2> "$log"
         rss=$(grep "$pattern" "$log" | grep -oE '[0-9]+' | head -1)
-        printf '%-6s %9d MB\n' "$size" $(( rss * unit / 1024 / 1024 ))
+        printf '%-10s %9d MB\n' "$size" $(( rss * unit / 1024 / 1024 ))
     done
     rm -f "$log"

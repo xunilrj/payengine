@@ -34,7 +34,7 @@ impl CsvErrors {
     /// record is underlined.
     pub fn report(&mut self, pos: Option<&Position>, field: Option<usize>, msg: String) {
         self.skipped += 1;
-        let (text, pad, mut span): (String, usize, Range<usize>) = match pos {
+        let (text, pad, mut span) = match pos {
             Some(p) => {
                 if self.seek_file.is_none() {
                     self.seek_file = File::open(&self.path).ok();

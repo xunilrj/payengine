@@ -1,0 +1,14 @@
+# 16 shards but only 2 clients: most shards receive nothing and must still
+# shut down cleanly and contribute no rows.
+#
+# Expected: 3 -> 2.5, 9 -> 1.
+shards = 16
+
+csv = """
+type,client,tx,amount
+deposit,3,1,2.5
+deposit,9,2,1
+"""
+
+[env]
+RUST_LOG = "off"

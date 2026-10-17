@@ -1,0 +1,7 @@
+# A non-numeric PAYENGINE_SHARDS must be rejected with a clear error and a
+# non-zero exit, not silently replaced by the default.
+args = ["tests/ok/basic/simple.csv"]
+
+[env]
+RUST_LOG = "off"
+PAYENGINE_SHARDS = "many"
