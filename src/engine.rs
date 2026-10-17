@@ -15,6 +15,7 @@ pub enum EngineError {
     NotInDispute,
     TxRejected,
     DuplicateTx,
+    Overflow,
 }
 
 impl fmt::Display for EngineError {
@@ -31,6 +32,7 @@ impl fmt::Display for EngineError {
             EngineError::NotInDispute => f.write_str("tx is not in dispute"),
             EngineError::TxRejected => f.write_str("tx was rejected"),
             EngineError::DuplicateTx => f.write_str("duplicate tx id"),
+            EngineError::Overflow => f.write_str("balance would overflow"),
         }
     }
 }
@@ -163,7 +165,10 @@ impl PaymentsEngine {
             return Err(EngineError::DuplicateTx);
         }
         let account = self.get_account(id);
-        account.available += amount;
+        account.available = account
+            .available
+            .checked_add(amount)
+            .ok_or(EngineError::Overflow)?;
 
         self.txs_amounts.insert(
             txid,
@@ -196,7 +201,10 @@ impl PaymentsEngine {
             .unwrap_or_default();
         if available >= amount {
             let account = self.get_account(id);
-            account.available -= amount;
+            account.available = account
+                .available
+                .checked_sub(amount)
+                .ok_or(EngineError::Overflow)?;
             self.txs_amounts.insert(
                 txid,
                 TxState {
@@ -232,8 +240,15 @@ impl PaymentsEngine {
             (TxStatus::Normal, TxKind::Deposit) => {
                 // Spec: move the deposited funds from available to held.
                 let account = self.get_account(id);
-                account.available -= amount;
-                account.held += amount;
+                let available = account
+                    .available
+                    .checked_sub(amount)
+                    .ok_or(EngineError::Overflow)?;
+                let held = account
+                    .held
+                    .checked_add(amount)
+                    .ok_or(EngineError::Overflow)?;
+                (account.available, account.held) = (available, held);
             }
             (TxStatus::Normal, TxKind::Withdrawal) => {
                 // The withdrawn funds already left the account; there is
@@ -266,8 +281,15 @@ impl PaymentsEngine {
             }
             (TxStatus::InDispute, TxKind::Deposit) => {
                 let account = self.get_account(id);
-                account.available += amount;
-                account.held -= amount;
+                let available = account
+                    .available
+                    .checked_add(amount)
+                    .ok_or(EngineError::Overflow)?;
+                let held = account
+                    .held
+                    .checked_sub(amount)
+                    .ok_or(EngineError::Overflow)?;
+                (account.available, account.held) = (available, held);
             }
             (TxStatus::InDispute, TxKind::Withdrawal) => {
                 // Nothing was moved on dispute, so nothing to release.
@@ -294,11 +316,19 @@ impl PaymentsEngine {
             }
             (TxStatus::InDispute, TxKind::Deposit) => {
                 // Reverse the deposit: remove the held funds.
-                self.get_account(id).held -= amount;
+                let account = self.get_account(id);
+                account.held = account
+                    .held
+                    .checked_sub(amount)
+                    .ok_or(EngineError::Overflow)?;
             }
             (TxStatus::InDispute, TxKind::Withdrawal) => {
                 // Reverse the withdrawal: refund the withdrawn funds.
-                self.get_account(id).available += amount;
+                let account = self.get_account(id);
+                account.available = account
+                    .available
+                    .checked_add(amount)
+                    .ok_or(EngineError::Overflow)?;
             }
             (TxStatus::Rejected, _) => {
                 return Err(EngineError::TxRejected);
@@ -610,6 +640,32 @@ mod tests {
             assert_eq!(e.dispute(1, 1), Err(EngineError::AccountFrozen));
             assert_eq!(e.resolve(1, 1), Err(EngineError::AccountFrozen));
             assert_eq!(e.chargeback(1, 1), Err(EngineError::AccountFrozen));
+        }
+    }
+
+    mod overflow {
+        use super::*;
+
+        #[test]
+        fn deposit_is_rejected_and_balance_unchanged() {
+            let mut e = PaymentsEngine::default();
+            e.deposit(1, 1, Decimal::MAX).unwrap();
+            assert_eq!(e.deposit(2, 1, dec!(1)), Err(EngineError::Overflow));
+            assert_eq!(e.get_account(1).available, Decimal::MAX);
+            // Not recorded: a dispute on it finds nothing.
+            assert_eq!(e.dispute(2, 1), Err(EngineError::TxNotFound));
+        }
+
+        #[test]
+        fn dispute_changes_neither_balance() {
+            let mut e = PaymentsEngine::default();
+            e.deposit(1, 1, Decimal::MAX).unwrap();
+            e.withdrawal(2, 1, Decimal::MAX).unwrap();
+            e.deposit(3, 1, Decimal::MAX).unwrap();
+            e.dispute(1, 1).unwrap(); // held = MAX, available = 0
+            assert_eq!(e.dispute(3, 1), Err(EngineError::Overflow));
+            let a = e.get_account(1);
+            assert_eq!((a.available, a.held), (dec!(0), Decimal::MAX));
         }
     }
 

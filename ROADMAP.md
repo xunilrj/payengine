@@ -5,18 +5,16 @@ the release binary.
 
 ## Correctness
 
-### 1. Arithmetic overflow aborts the whole run with no output
+### 1. Arithmetic overflow: only the output total is left
 
-| Input | Result |
-|---|---|
-| Two deposits adding up past `Decimal::MAX` | a shard panics (`Addition overflowed`), exit 1, empty stdout |
-| `available + held` past `Decimal::MAX` when writing the output | the main thread panics, exit 101 |
+The engine now uses `checked_add`/`checked_sub`: a transaction that would
+overflow a balance is ignored (`balance would overflow`, logged at `warn`) and
+the run continues.
 
-Only reachable with hostile input, but one bad row loses every account's output.
-
-**Fix:** `checked_add`/`checked_sub` in the engine, rejecting the transaction
-like any other business error (logged at `warn`), and a checked `total` in
-`write_output`. No rounding detection: that was tried and rolled back.
+Still open: when `available` and `held` both fit but their sum does not, writing
+the output stops with "total of client N does not fit in a decimal" and exit 1,
+with no output. Avoiding it would need the engine to also check
+`available + held` on every change.
 
 ### 2. Quoted fields containing a newline depend on the block size
 
@@ -47,6 +45,6 @@ blocks to exercise block splitting.
 
 ## Suggested order
 
-1. #1: the only item that can make the output empty.
+1. #1: only if the remaining case matters.
 2. #2: decide between supporting and documenting.
 3. #3 and #4.

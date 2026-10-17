@@ -153,14 +153,20 @@ fn write_output(engines: &[PaymentsEngine]) -> anyhow::Result<()> {
     let mut rows = engines
         .iter()
         .flat_map(|engine| engine.iter_accounts())
-        .map(|(id, account)| OutputCsv {
-            client: *id,
-            available: account.available.normalize(),
-            held: account.held.normalize(),
-            total: (account.available + account.held).normalize(),
-            locked: account.locked,
+        .map(|(id, account)| {
+            let total = account
+                .available
+                .checked_add(account.held)
+                .with_context(|| format!("total of client {id} does not fit in a decimal"))?;
+            anyhow::Ok(OutputCsv {
+                client: *id,
+                available: account.available.normalize(),
+                held: account.held.normalize(),
+                total: total.normalize(),
+                locked: account.locked,
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<anyhow::Result<Vec<_>>>()?;
     if std::env::var_os(SORT_OUTPUT_ENV).is_some() {
         rows.sort_unstable_by_key(|row| row.client);
     }

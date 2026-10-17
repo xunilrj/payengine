@@ -1,0 +1,14 @@
+---
+source: tests/e2e.rs
+---
+exit status: 0
+
+TRACE payengine::input: input file opened path="tests/ok/overflow/chargeback_withdrawal.csv"
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 1, amount: 79228162514264337593543950335 }
+TRACE payengine::sharded: transaction parsed transaction=Withdrawal { client: 1, tx: 2, amount: 79228162514264337593543950335 }
+TRACE payengine::sharded: transaction parsed transaction=Deposit { client: 1, tx: 3, amount: 79228162514264337593543950335 }
+TRACE payengine::sharded: transaction parsed transaction=Dispute { client: 1, tx: 2 }
+TRACE payengine::sharded: transaction parsed transaction=Chargeback { client: 1, tx: 2 }
+ WARN payengine::engine: chargeback ignored: balance would overflow client=1 tx=2
+client,available,held,total,locked
+1,79228162514264337593543950335,0,79228162514264337593543950335,false
