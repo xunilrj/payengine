@@ -41,14 +41,18 @@ mis-scoring against, the spec.
 
 ## Medium priority — README/code drift (reviewers will notice)
 
-- [ ] **README claims accounts are a pre-allocated `Vec` with O(1) access** ("Changing
+- [x] **README claims accounts are a pre-allocated `Vec` with O(1) access** ("Changing
   user id and tx id types" section), but `src/engine.rs:48` still uses
   `BTreeMap<u16, Account>`. Either make the change or fix the devlog entry.
-- [ ] **README claims invalid input kills the application** ("Improving validation"),
+  Done: README devlog rewritten to say the `Vec` was considered and rejected in favor
+  of keeping the `BTreeMap`.
+- [x] **README claims invalid input kills the application** ("Improving validation"),
   but the implementation skips bad rows and continues (see
   `tests/nok/skip_and_continue.csv.snap`, exit 0). Skip-and-continue is the better
   behavior for the grader; update the README to match reality and document the exit
   code policy (currently: diagnostics to stderr, exit 0 even with bad rows).
+  Done: README rewritten — bad rows are reported to stderr and skipped, processing
+  continues, exit 0; stdout stays clean for the output CSV.
 - [ ] **Consolidated assumptions section missing.** The spec asks to "document them",
   and the scoring rubric wants the correctness story ("how do you know this is
   correct?") in the README. Assumptions are currently scattered through the devlog.

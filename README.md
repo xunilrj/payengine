@@ -90,7 +90,7 @@ It was not asked but I decided to return more user friendly errors, because it i
 
 ## Changing user id and tx id types
 
-Now I changed user id and transaxtion id to the suggested types. That enticed me to change the accounts `BTreeMap` to a simple pre allocated `Vec`. `O(1)` access, but this is far from being the bottleneck and will almost ways use more memory.
+Now I changed user id and transaxtion id to the suggested types. That enticed me to consider changing the accounts `BTreeMap` to a simple pre allocated `Vec`. `O(1)` access, but this is far from being the bottleneck and will almost ways use more memory. I decided to keep the `BTreeMap`: it is simpler, sorted output for free, and memory scales with the number of clients seen, not with the whole `u16` range.
 
 I have also considered what to do with the transaction map. Today we are storing all of them, when we just need transactions in dispute. Huge wasted memory. Any solution would need a lazy way to restore a transaction when a dispute start.
 
@@ -110,7 +110,7 @@ I was reluctant because there is no "unlock" message. But seems to be the correc
 
 ## Improving validation
 
-I am also not sure what is the best way to deal with invalid input, like negative values for deposit. I decided to be an error and kill the application.
+I am also not sure what is the best way to deal with invalid inputs, like negative values for deposit. I decided to report a friendly error for the bad row (pointing at the offending field) and skip it, then keep processing the file. A single malformed line does not invalidate the whole history of valid transactions, so the application exits `0` even when some rows were rejected. All diagnostics go to stderr, keeping stdout clean for the output CSV.
 
 ## Output precision contradiction
 
