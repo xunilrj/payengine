@@ -1,0 +1,6 @@
+---
+source: tests/e2e.rs
+---
+exit status: 1
+
+missing input file argument — usage: payengine <input.csv>

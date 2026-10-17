@@ -1,0 +1,7 @@
+# A non-existent input file => the binary must report the open failure and
+# exit non-zero instead of panicking. RUST_LOG is off so the snapshot is
+# just the error line.
+args = ["does_not_exist.csv"]
+
+[env]
+RUST_LOG = "off"

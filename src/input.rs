@@ -5,6 +5,7 @@ use std::env::args;
 use tracing::trace;
 
 use crate::error::{CsvErrors, culprit_field};
+use anyhow::Context;
 
 #[derive(Debug, Deserialize)]
 pub enum TransactionType {
@@ -65,8 +66,10 @@ pub struct Input {
 
 impl Input {
     /// Opens the CSV given as the first CLI argument and reads its header row.
-    pub fn from_args() -> Self {
-        let path = args().nth(1).unwrap();
+    pub fn from_args() -> anyhow::Result<Self> {
+        let path = args()
+            .nth(1)
+            .context("missing input file argument — usage: payengine <input.csv>")?;
         trace!(target: "payengine", input = &path, "Input file");
 
         let mut reader = ReaderBuilder::new()
@@ -75,13 +78,16 @@ impl Input {
             .trim(Trim::All)
             .terminator(Terminator::CRLF)
             .from_path(&path)
-            .unwrap();
-        let headers = reader.byte_headers().unwrap().clone();
-        Input {
+            .with_context(|| format!("failed to open input file {path:?}"))?;
+        let headers = reader
+            .byte_headers()
+            .context("failed to read CSV header row")?
+            .clone();
+        Ok(Input {
             rdr: reader,
             headers,
             errs: CsvErrors::new(&path),
-        }
+        })
     }
 }
 

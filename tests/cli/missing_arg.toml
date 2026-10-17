@@ -1,0 +1,5 @@
+# No `args` key => the binary is invoked with no CLI argument. It must
+# report the missing input file argument and exit non-zero instead of
+# panicking. RUST_LOG is off so the snapshot is just the error line.
+[env]
+RUST_LOG = "off"

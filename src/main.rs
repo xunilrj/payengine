@@ -6,6 +6,7 @@ mod log;
 use crate::engine::PaymentsEngine;
 use crate::input::{Input, TransactionType};
 use crate::log::setup_log;
+use anyhow::Context;
 use csv::Writer;
 use rust_decimal::Decimal;
 use serde::Serialize;
@@ -19,16 +20,27 @@ struct OutputCsv {
     locked: bool,
 }
 
-fn main() {
+fn main() -> std::process::ExitCode {
     setup_log();
 
     let mut engine = PaymentsEngine::default();
 
-    process_input(&mut engine);
-    write_output(&mut engine);
+    match run(&mut engine) {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("{e:#}");
+            std::process::ExitCode::FAILURE
+        }
+    }
 }
 
-fn write_output(engine: &mut PaymentsEngine) {
+fn run(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
+    process_input(engine)?;
+    write_output(engine)?;
+    Ok(())
+}
+
+fn write_output(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
     let mut writer = Writer::from_writer(std::io::stdout());
     for (id, account) in engine.iter_accounts() {
         writer
@@ -39,27 +51,30 @@ fn write_output(engine: &mut PaymentsEngine) {
                 total: account.available + account.held,
                 locked: account.locked,
             })
-            .unwrap();
+            .context("failed to write output row")?;
     }
+    writer.flush().context("failed to flush output")?;
+    Ok(())
 }
 
-fn process_input(engine: &mut PaymentsEngine) {
-    let input = Input::from_args();
+fn process_input(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
+    let input = Input::from_args()?;
     for transaction in input {
         let _ = match transaction.ty {
             TransactionType::Deposit => engine.deposit(
                 transaction.tx,
                 transaction.client,
-                transaction.amount.unwrap(),
+                transaction.amount.expect("validate guarantees amount present for deposit"),
             ),
             TransactionType::Withdrawal => engine.withdrawal(
                 transaction.tx,
                 transaction.client,
-                transaction.amount.unwrap(),
+                transaction.amount.expect("validate guarantees amount present for withdrawal"),
             ),
             TransactionType::Dispute => engine.dispute(transaction.tx, transaction.client),
             TransactionType::Resolve => engine.resolve(transaction.tx, transaction.client),
             TransactionType::Chargeback => engine.chargeback(transaction.tx, transaction.client),
         };
     }
+    Ok(())
 }

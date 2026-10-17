@@ -1,6 +1,16 @@
 use insta::{Settings, assert_snapshot};
 use libtest_mimic::{Arguments, Failed, Trial};
-use std::{path::PathBuf, process::Output, str::FromStr as _, sync::Once, time::Duration};
+use serde::Deserialize;
+use std::{
+    collections::HashMap, ffi::OsString, path::PathBuf, process::Output, str::FromStr as _,
+    sync::Once, time::Duration,
+};
+
+#[derive(Deserialize)]
+struct TestSpec {
+    args: Option<Vec<String>>,
+    env: Option<HashMap<String, String>>,
+}
 
 static EXE_COMPILATION: Once = Once::new();
 
@@ -13,16 +23,26 @@ fn compile_exe() {
     assert!(o.status.success());
 }
 
-fn run_exe(arg: String) -> String {
+fn run_exe(
+    args: impl IntoIterator<Item = impl Into<OsString>>,
+    env_overrides: HashMap<String, String>,
+) -> String {
     let cargo_manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let repo_root = PathBuf::from_str(&cargo_manifest_dir)
         .unwrap()
         .to_path_buf();
     let exe_path = repo_root.join("target/release/payengine");
-    let o = duct::cmd!(&exe_path, &arg)
-        .dir(repo_root.clone())
-        .env("RUST_LOG", "trace")
-        .env("RUST_LOG_NO_TIMESTAMP", "1")
+
+    // On duct, first env var write, wins.
+    let mut cmd = duct::cmd(&exe_path, args).dir(repo_root.clone());
+    for (k, v) in &env_overrides {
+        cmd = cmd.env(k, v);
+    }
+    for (k, v) in [("RUST_LOG", "trace"), ("RUST_LOG_NO_TIMESTAMP", "1")] {
+        cmd = cmd.env(k, v);
+    }
+
+    let o = cmd
         .stderr_to_stdout()
         .stdout_capture()
         .unchecked()
@@ -43,17 +63,23 @@ fn main() {
     let args = Arguments::from_args();
 
     let mut tests = vec![];
-    let mut iter = glob::glob("tests/**/*.csv")
-        .expect("Failed to read glob pattern")
-        .into_iter();
-    while let Some(entry) = iter.next() {
-        match entry {
-            Ok(path) => {
-                let test_name = path.display().to_string();
-                tests.push(Trial::test(test_name, move || run_csv(path.clone())));
-            }
-            Err(_) => {
-                todo!()
+
+    for pattern in ["tests/**/*.csv", "tests/**/*.toml"] {
+        let mut iter = glob::glob(pattern)
+            .expect("Failed to read glob pattern")
+            .into_iter();
+        while let Some(entry) = iter.next() {
+            match entry {
+                Ok(path) => {
+                    let test_name = path.display().to_string();
+                    let trial = if path.extension().is_some_and(|e| e == "toml") {
+                        Trial::test(test_name, move || run_toml(path.clone()))
+                    } else {
+                        Trial::test(test_name, move || run_csv(path.clone()))
+                    };
+                    tests.push(trial);
+                }
+                Err(_) => todo!(),
             }
         }
     }
@@ -65,9 +91,28 @@ fn run_csv(path: PathBuf) -> Result<(), Failed> {
     EXE_COMPILATION.call_once(|| {
         compile_exe();
     });
-    let output = run_exe(path.display().to_string());
+    let output = run_exe([path.as_os_str()], HashMap::new());
     let output = clean_output(&output);
+    assert_snapshot_for(&path, output);
+    Ok(())
+}
 
+fn run_toml(path: PathBuf) -> Result<(), Failed> {
+    EXE_COMPILATION.call_once(|| {
+        compile_exe();
+    });
+    let content = std::fs::read_to_string(&path).unwrap();
+    let spec: TestSpec = toml::from_str(&content).unwrap();
+    let args = spec.args.unwrap_or_default();
+    let env = spec.env.unwrap_or_default();
+
+    let output = run_exe(args, env);
+    let output = clean_output(&output);
+    assert_snapshot_for(&path, output);
+    Ok(())
+}
+
+fn assert_snapshot_for(path: &PathBuf, output: String) {
     let snapshot_name = path.file_name().unwrap().display().to_string();
 
     let mut snapshot_path = path.parent().unwrap().components();
@@ -81,8 +126,6 @@ fn run_csv(path: PathBuf) -> Result<(), Failed> {
     settings.bind(|| {
         assert_snapshot!(snapshot_name, output);
     });
-
-    Ok(())
 }
 
 fn clean_output(output: &str) -> String {

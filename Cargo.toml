@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.104"
 ariadne = "0.6.0"
 csv = "1.4.0"
 rust_decimal = { version = "1.43.0", features = ["serde", "macros"] }
@@ -17,6 +18,7 @@ glob = "0.3.4"
 insta = "1.49.0"
 vte = "0.15.0"
 duct = { version = "1.1", features = ["timeout"] }
+toml = "1.1.8"
 
 [[test]]
 name = "e2e_snapshot"

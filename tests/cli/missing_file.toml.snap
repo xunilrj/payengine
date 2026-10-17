@@ -1,0 +1,6 @@
+---
+source: tests/e2e.rs
+---
+exit status: 1
+
+failed to open input file "does_not_exist.csv": No such file or directory (os error 2)
