@@ -244,6 +244,10 @@ impl Input {
                     continue;
                 }
             }
+            // A line of only whitespace is skipped, like an empty line.
+            if record.len() == 1 && record[0].trim_ascii().is_empty() {
+                continue;
+            }
             let position = record.position().map(at).unwrap_or_else(Position::new);
 
             // Deal with more columns than expected

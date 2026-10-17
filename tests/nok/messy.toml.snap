@@ -57,11 +57,4 @@ Error: expected at most 4 fields, found 5
     │ ────────┬───────  
     │         ╰───────── this record
 ────╯
-Error: unknown transaction type ``, expected deposit, withdrawal, dispute, resolve or chargeback
-    ╭─[ target/e2e/tests/nok/messy.csv:18:4 ]
-    │
- 18 │ 
-    │    │ 
-    │    ╰─ type
-────╯
-warning: skipped 6 invalid input row(s)
+warning: skipped 5 invalid input row(s)
