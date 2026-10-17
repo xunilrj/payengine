@@ -1,4 +1,10 @@
+# TLDR
 
+Deliberate spec interpretations (details in the devlog below):
+
+- Locked accounts ignore all further transactions. Spec is not clear on what to do with locked accounts; I chose the "fully frozen" bank reading;
+- Spec says `chargeback` is the "final state of the dispute". It is not clear this means nothing else can happen. I return the transaction to the `Normal` state, but with the client locked, nothign can happen anyway;
+- Amounts are output with natural precision (`2`, `1.5`), and are not forced to 4 decimal places. Spec contradicts itself; round values are explicitly accepted either way.
 
 # Plan
 
