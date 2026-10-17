@@ -512,3 +512,11 @@ Benchmark 4: default
 ```
 
 More than 10x from where we started.
+
+## Improving robustness
+
+I now added some debug_asserts, because they are free on `release` mode, but they are so cheap, that this don't really matter here.
+
+And some miri tests for the `ordered_pool`.
+
+I thought on also adding `loom`. But the pool is built on top of `flume`. To be honest, I am not 100% sure if it would work, but `loom` is normally not the best tool when there are a lot of layers on top of the sync primitives, as the number of forks needed explod to fast.

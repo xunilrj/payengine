@@ -14,6 +14,18 @@ ci:
     RUSTDOCFLAGS="-D warnings" cargo doc --all-features --no-deps --locked
     cargo deny check
 
+# Undefined-behavior and data-race check of the hand-rolled concurrency in
+# ordered_pool.rs: Miri runs its tests on emulated threads with the nightly
+# toolchain (`cargo +nightly` overrides the stable pin in rust-toolchain.toml).
+# Outside `ci` on purpose: it needs a nightly toolchain, and interpreted
+# execution is slow. Loom is deliberately not used: the pool's
+# synchronization lives inside flume, which loom cannot instrument, so it
+# would explore no interleavings.
+# Usage: just miri
+[group('CI')]
+miri:
+    cargo +nightly miri test --lib ordered_pool
+
 # Run every benchmark in the repo: the in-process engine and sharded benches,
 # the peak-RSS measurement per size, and the hyperfine CLI comparison.
 # Usage: just bench-all
