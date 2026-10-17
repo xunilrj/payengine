@@ -74,6 +74,7 @@ fn required_amount(amount: Option<Decimal>, name: &str) -> Result<Decimal, Field
 pub struct Input {
     rdr: csv::Reader<std::fs::File>,
     headers: ByteRecord,
+    record: ByteRecord,
     errs: CsvErrors,
 }
 
@@ -107,6 +108,7 @@ impl Input {
         Ok(Input {
             rdr: reader,
             headers,
+            record: ByteRecord::new(),
             errs: CsvErrors::new(&path),
         })
     }
@@ -121,13 +123,13 @@ impl Iterator for Input {
 
     fn next(&mut self) -> Option<Transaction> {
         loop {
-            let record = match self.rdr.byte_records().next() {
-                Some(Ok(r)) => r,
-                Some(Err(e)) => {
+            let record = match self.rdr.read_byte_record(&mut self.record) {
+                Ok(true) => &self.record,
+                Ok(false) => return None,
+                Err(e) => {
                     self.errs.report(e.position(), None, e.to_string());
                     continue;
                 }
-                None => return None,
             };
             let pos = record.position().cloned();
 
@@ -149,7 +151,7 @@ impl Iterator for Input {
                         ErrorKind::Deserialize { err, .. } => err.to_string(),
                         _ => e.to_string(),
                     };
-                    let field = culprit_field(&record);
+                    let field = culprit_field(record);
                     self.errs.report(pos.as_ref(), field, msg);
                     continue;
                 }

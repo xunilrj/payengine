@@ -345,3 +345,25 @@ Benchmark 4: default
 Which means the CSV parser is the bottleneck now. But to be sure I created a new "sampled profiler". I am running on macos so I am using "samply". Result is shown below. All the worst offenders boils down to the CSV parser.
 
 ![](image.png)
+
+The biggest culprit is that the CSV parser creates one new `ByteRecord` per row. Its buffers start empty, so they're allocated, grown and zeroed for every row. But this happen only in "iterator" mode. We can reuse the ByteRecord using `read_byte_record(&mut self.record)`.
+
+Doing that the CLI timing goes to:
+
+```
+Benchmark 1: 1 shard
+  Time (mean ± σ):      1.608 s ±  0.046 s    [User: 1.937 s, System: 0.150 s]
+  Range (min … max):    1.552 s …  1.697 s    10 runs
+
+Benchmark 2: 4 shards
+  Time (mean ± σ):      1.526 s ±  0.047 s    [User: 1.923 s, System: 0.189 s]
+  Range (min … max):    1.479 s …  1.622 s    10 runs
+
+Benchmark 3: 8 shards
+  Time (mean ± σ):      1.563 s ±  0.040 s    [User: 1.957 s, System: 0.249 s]
+  Range (min … max):    1.503 s …  1.614 s    10 runs
+
+Benchmark 4: default
+  Time (mean ± σ):      1.508 s ±  0.021 s    [User: 1.950 s, System: 0.224 s]
+  Range (min … max):    1.489 s …  1.552 s    10 runs
+```
