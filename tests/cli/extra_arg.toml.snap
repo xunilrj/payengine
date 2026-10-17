@@ -1,0 +1,6 @@
+---
+source: tests/e2e.rs
+---
+exit status: 1
+
+unexpected extra argument "unexpected_extra" — usage: payengine <input.csv>

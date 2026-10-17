@@ -1,0 +1,8 @@
+# Extra CLI arguments => the spec says the input file is the first and
+# only argument, so anything more must be rejected with a usage error and
+# a non-zero exit instead of being silently ignored. RUST_LOG is off so
+# the snapshot is just the error line.
+args = ["tests/ok/basic/simple.csv", "unexpected_extra"]
+
+[env]
+RUST_LOG = "off"
