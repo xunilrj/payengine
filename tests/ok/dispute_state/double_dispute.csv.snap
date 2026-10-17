@@ -4,7 +4,7 @@ source: tests/e2e.rs
 exit status: 0
 
 TRACE payengine: Input file input="tests/ok/dispute_state/double_dispute.csv"
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(2) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 1, amount: Some(2.0) }
 TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
 TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 1, amount: None }
  WARN payengine::engine: Tx was already in dispute txid=1

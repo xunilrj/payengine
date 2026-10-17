@@ -4,12 +4,12 @@ source: tests/e2e.rs
 exit status: 0
 
 TRACE payengine: Input file input="tests/ok/multi_client/sorted_output.csv"
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 2, tx: 1, amount: Some(10) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 2, amount: Some(10) }
-TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 3, tx: 3, amount: Some(25) }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 3, tx: 4, amount: Some(100) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 2, tx: 1, amount: Some(10.0) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 1, tx: 2, amount: Some(10.0) }
+TRACE payengine: Record record=InputCsv { ty: Withdrawal, client: 3, tx: 3, amount: Some(25.0) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 3, tx: 4, amount: Some(100.0) }
 TRACE payengine: Record record=InputCsv { ty: Dispute, client: 1, tx: 2, amount: None }
-TRACE payengine: Record record=InputCsv { ty: Deposit, client: 2, tx: 5, amount: Some(5) }
+TRACE payengine: Record record=InputCsv { ty: Deposit, client: 2, tx: 5, amount: Some(5.0) }
 TRACE payengine: Record record=InputCsv { ty: Chargeback, client: 1, tx: 2, amount: None }
 client,available,held,total,locked
 1,0,0,0,true

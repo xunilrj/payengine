@@ -43,14 +43,15 @@ fn run(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
 fn write_output(engine: &mut PaymentsEngine) -> anyhow::Result<()> {
     let mut writer = Writer::from_writer(std::io::stdout());
     for (id, account) in engine.iter_accounts() {
+        let output = OutputCsv {
+            client: *id,
+            available: account.available.normalize(),
+            held: account.held.normalize(),
+            total: (account.available + account.held).normalize(),
+            locked: account.locked,
+        };
         writer
-            .serialize(OutputCsv {
-                client: *id,
-                available: account.available,
-                held: account.held,
-                total: account.available + account.held,
-                locked: account.locked,
-            })
+            .serialize(output)
             .context("failed to write output row")?;
     }
     writer.flush().context("failed to flush output")?;

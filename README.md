@@ -111,6 +111,15 @@ Some messages seems to havee redundant Client ID. Spec is not enterily clear wha
 
 Now we are going to improve the issue of precision of `f32`. I decided to use `rust_decimal` as it is a well known create with 28 digits. This is NOT enough in same pairs, BTC to some meme coin, for example. In this case it may be worth to use an "infinite precision" decimal. But for this case it is enough.
 
+But using `Decimal` alone was not enough. CSV has no types, so the `csv` crate guesses each field's type (integer, then float, then string), and the default `Decimal` deserializer accepts whatever was guessed. Amounts were therefore parsed as `f64` first and silently corrupted beyond ~15-17 significant digits, before the engine even saw them:
+
+```
+12345678901234.5678            -> 12345678901234.568
+79228162514264337593543950335  -> rejected (integer too big for the guessed types)
+```
+
+The fix is `rust_decimal`'s `serde-str` feature, made for untyped formats like CSV: `Decimal` always deserializes from the field's text, so amounts are parsed exactly. A visible side effect is that amounts keep the scale they were written with, so `1.0` is printed as `1.0` instead of `1`. The value is the same, and the spec explicitly accepts both.
+
 ## User friendly error
 
 It was not asked but I decided to return more user friendly errors, because it is one thing I believe is very important.
@@ -164,3 +173,10 @@ I have also removed all unwrap/panic code from "production".
 
 There are two `.expect()` but they will never panic as they are checked beforehand.
 I tried to improve `InputCsv` to be an enum and make "None" impossible to represent, but the `csv` crate does not support this kind of serialization. That could be a strong argument to use another better crate, or to parse CSV manually. I will not do this for this test.
+
+## Another round on precision
+
+Only now I realized that `rust_decimal` without `serde-str` feature was parsing float values from `f64`, loosing precision on the parser. Now we are doing as best we can with `rust_decimal`. I am also calling normalize just before
+writing the output to simplify the final CSV.
+
+Again for money and crypto I still think makes more sense to use an "infinite precision" decimal lib. But I think we are good for this demo.

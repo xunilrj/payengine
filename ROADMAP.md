@@ -65,21 +65,39 @@ so a missing column deserializes to `None`. Add `ok/` fixtures with 3-column row
 
 ## P1: correctness / safety
 
-### 3. Silent precision loss on overflow
+### 3. Arithmetic at the `Decimal` limit (OPEN, accepted for now)
 
-`Decimal`'s `+=`/`-=` does not panic near the 96-bit limit. It silently rescales
-and drops digits:
+The original example here was a *parsing* problem, fixed in #3b. What remains is
+real but only matters at absurd magnitudes:
+
+- **Rounding:** near its 96-bit limit, `Decimal` (`+`, `-` and even
+  `checked_add`) silently rounds fractional digits (`...033.5 + 0.25 = ...034`).
+  With amounts of at most 4 decimal places, this needs balances above ~7.9·10^24.
+- **Panic:** `+=` panics with "Addition overflowed" past `Decimal::MAX`. Since
+  #3b, `79228162514264337593543950335` parses, so two such deposits crash the
+  run. Reachable only with hostile input.
+
+An attempt that detected rounding through scale changes (`exact_add`) was rolled
+back. It relied on `rust_decimal` internals (`0.0 + 0` drops the scale) and broke
+a normal chargeback. If this is revisited: `checked_add` returning
+`EngineError::Overflow` for the panic, plus at most 4 decimal places on input and
+a balance limit of 10^24 for rounding, or integer amounts in units of 0.0001.
+
+### 3b. ~~Amounts lose precision while being parsed~~ (FIXED: `rust_decimal` `serde-str` feature)
+
+The `csv` crate guesses field types, so `Decimal` is deserialized from an `f64`.
+Anything beyond ~15-17 significant digits is silently corrupted before the
+engine sees it:
 
 ```
-deposit 7922816251426433759354395033.5  (x2)
-→ available = 15845632502852868000000000000   (exact: 15845632502852867518708790067)
+deposit 12345678901234.5678              → 12345678901234.568
+deposit 39614081257132168796771975168.0  → 39614081257132170000000000000
 ```
 
-The total is wrong, and nothing reports it. Very unlikely with real data, but the
-spec scores "Safety" explicitly, and a bank would refuse the operation.
-
-**Fix:** use `checked_add`/`checked_sub` in the engine and return a new
-`EngineError::Overflow`, which ignores the tx and logs a warning. Add a test.
+This also blocks a meaningful end-to-end overflow test. **Fix:** parse `amount`
+from the string, e.g. `#[serde(with = "rust_decimal::serde::str_option")]` (the
+`serde-with-str` feature), or deserialize `Option<String>` and use
+`Decimal::from_str`. Check how this changes `1e2`, `.5` and `2.` in `messy.toml`.
 
 ### 4. Amounts with more than 4 decimal places are accepted as-is
 
